@@ -1,0 +1,72 @@
+{
+  "gmail": {
+    "user": "your-email@gmail.com",
+    "appPassword": "your-gmail-app-password",
+    "searchQueries": [
+      "subject:(기술문의)",
+      "subject:(기술지원)",
+      "subject:(WebSquare)",
+      "subject:(웹스퀘어)",
+      "subject:(GridView)",
+      "subject:(엑셀 다운로드)",
+      "subject:(라이선스)"
+    ]
+  },
+  "wtech": {
+    "baseUrl": "https://your-wtech-url.com",
+    "loginUrl": "https://your-wtech-url.com/login",
+    "credentials": {
+      "username": "",
+      "password": ""
+    },
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginButton": "#loginBtn",
+      "listRow": ".board-list tr",
+      "id": ".col-id",
+      "title": ".col-title a",
+      "titleLink": ".col-title a",
+      "date": ".col-date",
+      "category": ".col-category",
+      "questionContent": ".question-content",
+      "answerContent": ".answer-content"
+    }
+  },
+  "wtechFaq": {
+    "faqUrl": "https://your-wtech-url.com/faq",
+    "loginUrl": "https://your-wtech-url.com/login",
+    "credentials": {
+      "username": "",
+      "password": ""
+    },
+    "selectors": {
+      "username": "#username",
+      "password": "#password",
+      "loginButton": "#loginBtn",
+      "faqItem": ".faq-item",
+      "question": ".faq-question",
+      "answer": ".faq-answer",
+      "category": ".faq-category"
+    }
+  },
+  "confluence": {
+    "baseUrl": "https://your-confluence-url.com",
+    "loginUrl": "https://your-confluence-url.com/login",
+    "credentials": {
+      "username": "",
+      "password": ""
+    }
+  },
+  "apiGuide": {
+    "sourceDir": "./data/raw/api_guide_html"
+  },
+  "anthropic": {
+    "apiKey": "your-anthropic-api-key",
+    "model": "claude-sonnet-4-20250514"
+  },
+  "answer": {
+    "responderName": "홍길동",
+    "template": "안녕하세요.\n인스웨이브 기술지원팀 {{name}} 프로입니다.\n\n{{topic}}과 관련하여 확인 후 답변드립니다.\n\n{{content}}\n\n감사합니다."
+  }
+}

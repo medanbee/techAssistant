@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+config/config.json
+data/raw/
+data/processed/
+data/chroma/
+data/answers/
+.DS_Store
+__MACOSX/
+.claude/

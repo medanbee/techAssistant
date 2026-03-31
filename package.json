@@ -1,0 +1,28 @@
+{
+  "name": "techassistant",
+  "version": "1.0.0",
+  "description": "AI 기술문의 자동 답변 시스템 - 인스웨이브 WebSquare 기술지원",
+  "main": "src/collectors/index.js",
+  "scripts": {
+    "collect": "node scripts/collect.js",
+    "collect:gmail": "node scripts/collect.js --source gmail",
+    "collect:wtech": "node scripts/collect.js --source wtech",
+    "collect:confluence": "node scripts/collect.js --source confluence",
+    "classify": "node scripts/classify.js",
+    "index": "python3 src/rag/indexer.py",
+    "index:reset": "python3 src/rag/indexer.py --reset",
+    "search": "python3 src/rag/searcher.py",
+    "answer": "node scripts/answer.js",
+    "pipeline": "npm run collect && npm run classify && npm run index"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "cheerio": "^1.2.0",
+    "imap": "^0.8.19",
+    "mailparser": "^3.7.1",
+    "puppeteer": "^23.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
