@@ -93,6 +93,32 @@ npm run pipeline
 }
 ```
 
+## 답변 생성 파이프라인 (공통)
+
+Claude Code / answer.js / FastAPI 서버 모두 동일한 파이프라인을 따른다.
+
+```
+1. RAG 검색 — searcher.py로 유사 사례 검색 (쿼리 전처리 적용)
+2. 답변 초안 생성 — RAG 결과 기반 답변 작성
+3. API 검증 — 답변에 포함된 모든 API/이벤트/속성명을 RAG DB에서 $contains 검색으로 존재 확인
+4. 미확인 API 발견 시 → 해당 API 제외하고 답변 재생성 (최대 3회)
+5. 답변 파일 저장 — data/answers/날짜/주제.md
+```
+
+### Claude Code에서 답변 시 절차
+1. `python src/rag/searcher.py "문의 내용"` 으로 RAG 검색
+2. 검색 결과 기반으로 답변 초안 작성
+3. 답변에 사용된 API/이벤트/속성명을 RAG DB에서 `$contains` 검색으로 검증
+4. 미확인 API 발견 시 → 실제 존재하는 API로 교체하여 답변 수정
+5. `data/answers/날짜/주제.md` 파일로 저장
+
+### answer.js 파이프라인 자동 절차
+1. 문의 분류 (classifier)
+2. RAG 검색 (searcher.py)
+3. Claude API로 답변 생성 (answerGenerator.js)
+4. API 검증 (apiVerifier.js) — 미확인 API 발견 시 자동 재생성 (최대 3회)
+5. 답변 파일 자동 저장 (pipeline.js)
+
 ## 답변 생성 규칙
 
 ### RAG 검색 결과가 있을 때

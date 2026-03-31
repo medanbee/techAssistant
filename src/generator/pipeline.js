@@ -8,11 +8,13 @@ const fs = require('fs');
 const path = require('path');
 const Classifier = require('../classifier/classifier');
 const AnswerGenerator = require('./answerGenerator');
+const ApiVerifier = require('./apiVerifier');
 
 class AnswerPipeline {
   constructor() {
     this.classifier = new Classifier();
     this.generator = new AnswerGenerator();
+    this.verifier = new ApiVerifier();
     this.ragSearcherPath = path.join(__dirname, '../rag/searcher.py');
   }
 
@@ -34,13 +36,40 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(question, options);
     console.log(`[파이프라인] RAG 검색: ${ragResult.resultCount}건`);
 
-    // 3. 답변 생성
-    const result = await this.generator.generate(question, ragResult.context, {
+    // 3. 답변 생성 + API 검증 (최대 3회 재생성)
+    const MAX_RETRIES = 3;
+    let result = await this.generator.generate(question, ragResult.context, {
       version: options.version,
       libraries: options.libraries,
     });
-
     console.log(`[파이프라인] 답변 생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+
+    let verification = this.verifier.verify(result.answer);
+    console.log(`[파이프라인] ${verification.summary}`);
+
+    let retryCount = 0;
+    while (verification.unverified.length > 0 && retryCount < MAX_RETRIES) {
+      retryCount++;
+      const invalidApis = verification.unverified.map(r => r.name);
+      console.log(`[파이프라인] 미확인 API 발견 → 재생성 (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
+
+      result = await this.generator.regenerate(
+        question, ragResult.context, result.answer, invalidApis,
+        { version: options.version, libraries: options.libraries }
+      );
+      console.log(`[파이프라인] 재생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+
+      verification = this.verifier.verify(result.answer);
+      console.log(`[파이프라인] ${verification.summary}`);
+    }
+
+    // 재생성 3회 후에도 미확인 API 남아있으면 경고 표시
+    if (verification.unverified.length > 0) {
+      result.answer += '\n\n---\n⚠️ **검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
+      for (const item of verification.unverified) {
+        result.answer += `- \`${item.name}\`\n`;
+      }
+    }
 
     // 4. 답변 파일 저장
     const savedPath = this._saveAnswer(question, result, classification);
@@ -56,6 +85,7 @@ class AnswerPipeline {
       hasRagResults: result.hasRagResults,
       usage: result.usage,
       model: result.model,
+      verification,
       savedPath,
     };
   }

@@ -130,4 +130,59 @@ class AnswerGenerator {
   }
 }
 
+  /**
+   * 미확인 API를 제외하고 답변 재생성
+   *
+   * @param {string} question - 원본 문의
+   * @param {string} ragContext - RAG 컨텍스트
+   * @param {string} previousAnswer - 이전 답변
+   * @param {string[]} invalidApis - 미확인 API 목록
+   * @param {object} options - 추가 옵션
+   * @returns {object} - { answer, usage, model, hasRagResults }
+   */
+  async regenerate(question, ragContext, previousAnswer, invalidApis, options = {}) {
+    const hasRagResults = !!(ragContext && !ragContext.includes('관련 사례를 찾지 못했습니다'));
+    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
+
+    const userMessage = this._buildUserMessage(question, ragContext, options, hasRagResults);
+
+    const regenerateInstruction = `
+## 이전 답변 (수정 필요)
+
+${previousAnswer}
+
+## 수정 지시
+
+위 답변에서 아래 API/이벤트/속성은 내부 데이터에서 확인되지 않았습니다. **존재하지 않는 API입니다.**
+${invalidApis.map(api => `- ${api}`).join('\n')}
+
+위 미확인 API를 모두 제거하고, RAG 검색 결과에서 확인된 실제 API만 사용하여 답변을 다시 작성해 주세요.
+존재 여부가 불확실한 API는 사용하지 마세요.`;
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: userMessage + '\n\n' + regenerateInstruction },
+      ],
+    });
+
+    const answer = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
+
+    return {
+      answer,
+      hasRagResults,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+      model: response.model,
+    };
+  }
+}
+
 module.exports = AnswerGenerator;

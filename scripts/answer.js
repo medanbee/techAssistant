@@ -32,7 +32,23 @@ async function main() {
   console.log('답변 근거:', result.hasRagResults ? '내부 데이터 기반' : '일반 기술 지식 기반 (내부 사례 없음)');
   console.log('모델:', result.model);
   console.log('토큰:', `입력 ${result.usage.inputTokens} / 출력 ${result.usage.outputTokens}`);
+  console.log('API 검증:', result.verification.summary);
+  if (result.savedPath) console.log('저장 경로:', result.savedPath);
   console.log('='.repeat(60));
+
+  if (result.verification.verified.length > 0) {
+    console.log('\n[✅ 검증된 API]');
+    for (const v of result.verification.verified) {
+      console.log(`  ${v.name} — ${v.source} (유사도: ${v.score})`);
+    }
+  }
+  if (result.verification.unverified.length > 0) {
+    console.log('\n[⚠️ 미확인 API — 실제 존재 여부 확인 필요]');
+    for (const u of result.verification.unverified) {
+      console.log(`  ${u.name}`);
+    }
+  }
+
   console.log('\n[답변 초안]\n');
   console.log(result.answer);
 }
