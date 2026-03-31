@@ -7,5 +7,7 @@ data/raw/
 data/processed/
 data/chroma/
 .DS_Store
+**/confluence_cookies.json
+**/confluence_data.json
 __MACOSX/
 .claude/

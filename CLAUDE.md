@@ -87,7 +87,7 @@ npm run pipeline
 ```json
 {
   "answer": {
-    "responderName": "이단비",
+    "responderName": "담당자명",
     "template": "안녕하세요.\n인스웨이브 기술지원팀 {{name}} 프로입니다.\n\n{{topic}}과 관련하여 확인 후 답변드립니다.\n\n{{content}}\n\n감사합니다."
   }
 }
