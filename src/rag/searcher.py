@@ -280,6 +280,9 @@ def main():
         b = r.get("bm25_score", 0)
         print(f"#{r['rank']} [최종: {r['score']:.4f} | 벡터: {v:.4f} | BM25: {b:.4f}] {r['metadata'].get('source', '')}")
         print(f"  질문: {r['metadata'].get('question', '')[:100]}")
+        doc = r.get("document", "")
+        if doc:
+            print(f"  답변: {doc[:500]}")
         print()
 
 

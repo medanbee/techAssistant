@@ -13,11 +13,14 @@
     "index:reset": "python3 src/rag/indexer.py --reset",
     "search": "python3 src/rag/searcher.py",
     "answer": "node scripts/answer.js",
-    "pipeline": "npm run collect && npm run classify && npm run index"
+    "pipeline": "npm run collect && npm run classify && npm run index",
+    "server": "node src/api/server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "imap": "^0.8.19",
     "mailparser": "^3.7.1",
     "puppeteer": "^23.0.0"

@@ -3,7 +3,7 @@
  * 문의 입력 → RAG 검색 → 분류 → 답변 생성 → 출력
  */
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const Classifier = require('../classifier/classifier');
@@ -100,8 +100,8 @@ class AnswerPipeline {
         ? path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe')
         : 'python3');
       const args = [
-        pythonPath, this.ragSearcherPath,
-        JSON.stringify(query),
+        this.ragSearcherPath,
+        query,
         '--top-k', String(topK),
       ];
 
@@ -109,9 +109,10 @@ class AnswerPipeline {
         args.push('--category', options.categoryFilter);
       }
 
-      const output = execSync(args.join(' '), {
+      const output = execFileSync(pythonPath, args, {
         encoding: 'utf8',
-        timeout: 30000,
+        timeout: 60000,
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
       });
 
       // Python 스크립트의 stdout에서 컨텍스트 파싱

@@ -128,7 +128,6 @@ class AnswerGenerator {
 
     return message;
   }
-}
 
   /**
    * 미확인 API를 제외하고 답변 재생성

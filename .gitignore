@@ -11,3 +11,4 @@ data/chroma/
 **/confluence_data.json
 __MACOSX/
 .claude/
+.superpowers/
