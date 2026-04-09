@@ -52,6 +52,19 @@ async function collectAll(options = {}) {
       console.log(`[수집] ${name} 시작...`);
       const collectOpts = {};
       if (options.since) collectOpts.since = options.since;
+
+      // Gmail: config의 제외 키워드로 필터링 (포함 키워드 7개 대신)
+      if (name === 'gmail') {
+        const { loadConfig } = require('../utils/config');
+        const gmailConfig = loadConfig().gmail;
+        const excludeFilter = (gmailConfig.searchQueries || []).join(' ');
+        if (excludeFilter) {
+          let rawQuery = excludeFilter;
+          if (options.since) rawQuery += ` after:${options.since.replace(/-/g, '/')}`;
+          collectOpts.rawQuery = rawQuery;
+        }
+      }
+
       results[name] = await instance.collect(collectOpts);
       await instance.save(RAW_DIR);
     } catch (err) {

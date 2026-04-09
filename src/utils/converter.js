@@ -39,24 +39,20 @@ function convertToQA(thread) {
   // 비기술 메일 건너뛰기
   if (SKIP_PATTERNS.some((p) => p.test(subject))) return null;
 
-  const question = cleanText(firstMail.text || subject || '');
+  // 스레드 전체 본문을 합쳐서 저장 (Q&A 분리 없이)
+  const allParts = thread.map((mail) => cleanText(mail.text || ''));
+  const fullText = allParts.filter((t) => t.length > 0).join('\n\n---\n\n');
 
-  if (!question || question.length < 10) return null;
-
-  // 답변: 두 번째 메일부터 결합
-  const answerParts = thread.slice(1).map((mail) => cleanText(mail.text || ''));
-  const answer = answerParts.filter((t) => t.length > 0).join('\n\n---\n\n');
-
-  if (!answer) return null;
+  if (!fullText || fullText.length < 10) return null;
 
   return {
     category: '',
     subcategory: '',
-    question,
-    answer,
+    question: subject,
+    answer: fullText,
     source: 'Gmail 기술문의',
     date: firstMail.date || '',
-    tags: extractTags(question),
+    tags: extractTags(subject + ' ' + fullText),
   };
 }
 

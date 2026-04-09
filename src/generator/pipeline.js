@@ -9,6 +9,7 @@ const path = require('path');
 const Classifier = require('../classifier/classifier');
 const AnswerGenerator = require('./answerGenerator');
 const ApiVerifier = require('./apiVerifier');
+const { addToQueue } = require('../api/queue');
 
 class AnswerPipeline {
   constructor() {
@@ -75,6 +76,20 @@ class AnswerPipeline {
     const savedPath = this._saveAnswer(question, result, classification);
     if (savedPath) {
       console.log(`[파이프라인] 답변 저장: ${savedPath}`);
+    }
+
+    // 5. 검수 큐에 추가
+    try {
+      const queueItem = addToQueue({
+        question,
+        answer: result.answer,
+        classification,
+        sources: ragResult.context ? ['RAG'] : [],
+        filePath: savedPath,
+      });
+      console.log(`[파이프라인] 검수 큐 추가: ${queueItem.id}`);
+    } catch (err) {
+      console.warn('[파이프라인] 큐 추가 실패:', err.message);
     }
 
     return {

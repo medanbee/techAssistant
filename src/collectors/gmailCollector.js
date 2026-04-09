@@ -72,11 +72,16 @@ class GmailCollector {
 
   /**
    * Phase 1: UID 일괄 검색 (7개 쿼리 병렬 실행)
+   * @param {Object} [options] - 검색 옵션
+   * @param {string} [options.rawQuery] - 단일 검색 쿼리 (지정 시 SEARCH_QUERIES 대신 사용)
    */
-  async searchUIDs() {
+  async searchUIDs(options = {}) {
     const allUIDs = new Set();
+    const { rawQuery } = options;
 
-    const searchPromises = SEARCH_QUERIES.map((query) => {
+    const queries = rawQuery ? [rawQuery] : SEARCH_QUERIES;
+
+    const searchPromises = queries.map((query) => {
       return new Promise((resolve, reject) => {
         this.imap.search([['X-GM-RAW', query]], (err, uids) => {
           if (err) return reject(err);
@@ -101,14 +106,34 @@ class GmailCollector {
 
   /**
    * Phase 2: 배치 단위 본문 다운로드
+   * @param {Object} [options] - 옵션
+   * @param {Function} [options.onBatch] - 배치 완료 콜백 (parsedMails) => void. 메모리 절약용.
    */
-  async fetchBatch(uids) {
+  async fetchBatch(uids, options = {}) {
     const mails = [];
 
     for (let i = 0; i < uids.length; i += BATCH_SIZE) {
       const batch = uids.slice(i, i + BATCH_SIZE);
+
+      // IMAP 연결 상태 확인
+      if (!this.imap || this.imap.state !== 'authenticated') {
+        throw new Error('IMAP 연결 끊김 (batch ' + i + ')');
+      }
+
       const batchMails = await this._fetchMailBatch(batch);
-      mails.push(...batchMails);
+
+      // 빈 결과 = 연결 끊김 가능성
+      if (batchMails.length === 0 && batch.length > 0) {
+        throw new Error('IMAP 빈 응답 - 연결 끊김 의심 (batch ' + i + ')');
+      }
+
+      if (options.onBatch) {
+        const parsed = await this.parseMails(batchMails);
+        options.onBatch(parsed);
+      } else {
+        mails.push(...batchMails);
+      }
+
       console.log(`[Gmail] Phase 2 진행: ${Math.min(i + BATCH_SIZE, uids.length)}/${uids.length}`);
     }
 
@@ -231,45 +256,141 @@ class GmailCollector {
 
   /**
    * 전체 크롤링 실행
+   * @param {Object} [searchOptions] - searchUIDs에 전달할 옵션
    */
-  async collect() {
-    try {
-      await this.connect();
+  async collect(searchOptions) {
+    const MAX_RETRIES = 10;
+    const RETRY_DELAY = 30000; // 30초 대기 후 재시도
+    const CHECKPOINT_PATH = path.join(__dirname, '../../data/raw/.gmail_checkpoint.json');
+    const QA_PARTIAL_PATH = path.join(__dirname, '../../data/raw/.gmail_qa_partial.json');
 
-      // Phase 1: UID 검색
-      const uids = await this.searchUIDs();
-      if (uids.length === 0) {
-        console.log('[Gmail] 수집할 메일 없음');
-        return [];
-      }
+    let uids = null;
 
-      // Phase 2: 배치 다운로드
-      const rawMails = await this.fetchBatch(uids);
-      const parsedMails = await this.parseMails(rawMails);
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await this.connect();
 
-      // 첨부파일 저장
-      this._parsedMails = parsedMails;
-
-      // 스레드 그룹핑
-      const threads = this.groupByThread(parsedMails);
-
-      // Q&A 변환 + 개인정보 마스킹
-      const qaData = [];
-      for (const [, thread] of threads) {
-        const qa = convertToQA(thread);
-        if (qa) {
-          qa.question = maskPersonalInfo(qa.question);
-          qa.answer = maskPersonalInfo(qa.answer);
-          qa.source = 'Gmail 기술문의';
-          qaData.push(qa);
+        // Phase 1: UID 검색 (첫 시도에만)
+        if (!uids) {
+          uids = await this.searchUIDs(searchOptions);
+          if (uids.length === 0) {
+            console.log('[Gmail] 수집할 메일 없음');
+            return [];
+          }
         }
-      }
 
-      console.log(`[Gmail] 수집 완료: ${qaData.length}건 Q&A 변환`);
-      this.collectedMails = qaData;
-      return qaData;
-    } finally {
-      this.disconnect();
+        // 체크포인트 복원
+        let doneUIDs = new Set();
+        let savedQA = [];
+        try {
+          const cp = JSON.parse(await fs.readFile(CHECKPOINT_PATH, 'utf8'));
+          doneUIDs = new Set(cp.doneUIDs || []);
+          console.log(`[Gmail] 체크포인트 복원: ${doneUIDs.size}건 건너뜀`);
+        } catch {}
+        try {
+          savedQA = JSON.parse(await fs.readFile(QA_PARTIAL_PATH, 'utf8'));
+          console.log(`[Gmail] 중간 저장분 복원: ${savedQA.length}건 Q&A`);
+        } catch {}
+
+        const remainingUIDs = uids.filter(uid => !doneUIDs.has(uid));
+        if (remainingUIDs.length === 0) {
+          console.log('[Gmail] 모든 UID 처리 완료');
+          // 최종 Q&A 중복 제거
+          const seen = new Set();
+          const qaData = savedQA.filter(qa => {
+            const key = (qa.question || '').substring(0, 100);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          try { await fs.unlink(CHECKPOINT_PATH); } catch {}
+          try { await fs.unlink(QA_PARTIAL_PATH); } catch {}
+          console.log(`[Gmail] 수집 완료: ${qaData.length}건 Q&A 변환`);
+          this.collectedMails = qaData;
+          return qaData;
+        }
+
+        console.log(`[Gmail] 다운로드 대상: ${remainingUIDs.length}/${uids.length}건 (시도 ${attempt}/${MAX_RETRIES})`);
+
+        let batchCount = 0;
+        const allParsed = [];
+
+        await this.fetchBatch(remainingUIDs, {
+          onBatch: async (parsed) => {
+            allParsed.push(...parsed);
+            batchCount++;
+
+            const threads = this.groupByThread(parsed);
+            for (const [, thread] of threads) {
+              const qa = convertToQA(thread);
+              if (qa) {
+                qa.question = maskPersonalInfo(qa.question);
+                qa.answer = maskPersonalInfo(qa.answer);
+                qa.source = 'Gmail 기술문의';
+                savedQA.push(qa);
+              }
+            }
+
+            // 매 10배치(300건)마다 체크포인트 + Q&A 중간 저장
+            if (batchCount % 10 === 0) {
+              const processedUIDs = [...doneUIDs, ...remainingUIDs.slice(0, batchCount * BATCH_SIZE)];
+              await fs.writeFile(CHECKPOINT_PATH, JSON.stringify({ doneUIDs: processedUIDs }), 'utf8');
+              await fs.writeFile(QA_PARTIAL_PATH, JSON.stringify(savedQA, null, 2), 'utf8');
+              console.log(`[Gmail] 중간 저장: ${savedQA.length}건 Q&A, ${processedUIDs.length}건 UID`);
+            }
+          }
+        });
+
+        // 배치 완료 후 최종 체크포인트 저장
+        const finalUIDs = [...doneUIDs, ...remainingUIDs.slice(0, batchCount * BATCH_SIZE)];
+        await fs.writeFile(CHECKPOINT_PATH, JSON.stringify({ doneUIDs: finalUIDs }), 'utf8');
+        await fs.writeFile(QA_PARTIAL_PATH, JSON.stringify(savedQA, null, 2), 'utf8');
+
+        this._parsedMails = allParsed;
+
+        // 최종 Q&A 중복 제거
+        const seen = new Set();
+        const qaData = savedQA.filter(qa => {
+          const key = (qa.question || '').substring(0, 100);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        try { await fs.unlink(CHECKPOINT_PATH); } catch {}
+        try { await fs.unlink(QA_PARTIAL_PATH); } catch {}
+
+        console.log(`[Gmail] 수집 완료: ${qaData.length}건 Q&A 변환`);
+        this.collectedMails = qaData;
+        return qaData;
+
+      } catch (err) {
+        this.disconnect();
+        console.error(`[Gmail] 연결 끊김 (시도 ${attempt}/${MAX_RETRIES}): ${err.message}`);
+
+        // 끊기기 전 처리분 체크포인트 저장
+        try {
+          let doneUIDs = new Set();
+          let savedQA = [];
+          try { doneUIDs = new Set(JSON.parse(await fs.readFile(CHECKPOINT_PATH, 'utf8')).doneUIDs || []); } catch {}
+          try { savedQA = JSON.parse(await fs.readFile(QA_PARTIAL_PATH, 'utf8')); } catch {}
+          console.log(`[Gmail] 현재까지: ${doneUIDs.size}건 UID, ${savedQA.length}건 Q&A 저장됨`);
+        } catch {}
+
+        if (attempt < MAX_RETRIES) {
+          console.log(`[Gmail] ${RETRY_DELAY / 1000}초 후 재시도...`);
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+        } else {
+          console.error('[Gmail] 최대 재시도 횟수 초과');
+          // 중간 저장분이라도 반환
+          let savedQA = [];
+          try { savedQA = JSON.parse(await fs.readFile(QA_PARTIAL_PATH, 'utf8')); } catch {}
+          this.collectedMails = savedQA;
+          return savedQA;
+        }
+      } finally {
+        this.disconnect();
+      }
     }
   }
 

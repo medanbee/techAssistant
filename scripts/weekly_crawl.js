@@ -39,19 +39,14 @@ async function log(message) {
 async function crawlGmail(afterDate) {
   await log('[Gmail] 크롤링 시작...');
   const config = loadConfig().gmail;
-  const originalQueries = config.searchQueries || [
-    'subject:(기술문의)',
-    'subject:(기술지원)',
-    'subject:(WebSquare)',
-    'subject:(웹스퀘어)',
-    'subject:(GridView)',
-    'subject:(엑셀 다운로드)',
-    'subject:(라이선스)',
-  ];
-  config.searchQueries = originalQueries.map((q) => `${q} after:${afterDate}`);
+
+  // config.searchQueries는 제외 키워드 (예: "-subject:(정기점검) -subject:(보고서) ...")
+  // 제외 항목만 빼고 전체 메일을 가져옴 (포함 키워드 없이)
+  const excludeFilter = (config.searchQueries || []).join(' ');
+  const searchQuery = `${excludeFilter} after:${afterDate}`;
 
   const collector = new GmailCollector(config);
-  const newData = await collector.collect();
+  const newData = await collector.collect({ rawQuery: searchQuery });
   await log(`[Gmail] 크롤링: ${newData.length}건`);
 
   if (newData.length === 0) {
@@ -141,7 +136,7 @@ async function main() {
   const pythonPath = process.env.PYTHON_PATH || (process.platform === 'win32'
     ? path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe')
     : 'python3');
-  execSync(`"${pythonPath}" src/rag/indexer.py`, { cwd: ROOT, stdio: 'inherit', timeout: 600000 });
+  execSync(`"${pythonPath}" src/rag/indexer.py`, { cwd: ROOT, stdio: 'inherit', timeout: 1800000 });
 
   // 결과 요약
   await log('=== 주간 크롤링 결과 ===');
