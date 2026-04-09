@@ -12,3 +12,4 @@ data/chroma/
 __MACOSX/
 .claude/
 .superpowers/
+logs/
