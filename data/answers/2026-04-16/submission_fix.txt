@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head>
+        <w2:type>COMPONENT</w2:type>
+        <w2:buildDate/>
+        <w2:MSA/>
+        <xf:model>
+            <w2:dataCollection baseNode="map">
+                <w2:dataList repeatNode="map" id="technicalSupportInquiryListVo" saveRemovedData="true">
+                    <w2:columnInfo>
+                        <w2:column id="sTechSptId" name="name1" dataType="text"></w2:column>
+                        <w2:column id="sTechSptNm" name="name2" dataType="text"></w2:column>
+                        <w2:column id="sSptOfcr" name="name3" dataType="text"></w2:column>
+                        <w2:column id="totalCount" name="name4" dataType="text"></w2:column>
+                    </w2:columnInfo>
+                </w2:dataList>
+                <w2:dataMap baseNode="map" id="responseMap">
+                    <w2:keyInfo>
+                        <w2:key id="technicalSupportInquiryListVo" name="name1" dataType="text"></w2:key>
+                    </w2:keyInfo>
+                </w2:dataMap>
+            </w2:dataCollection>
+            <w2:workflowCollection />
+            <xf:submission id="submission1" ref="" target="data:json,responseMap" action="https://support.inswave.com/ActiveTechSptList.pwkjson" method="post"
+                mediatype="application/json" encoding="UTF-8" instance="" replace="" errorHandler="" customHandler="" mode="asynchronous"
+                processMsg="" ev:submit="" ev:submitdone="scwin.submission1_submitdone" ev:submiterror="scwin.submission1_submiterror" abortTrigger="">
+            </xf:submission>
+        </xf:model>
+        <w2:layoutInfo/>
+        <w2:publicInfo method=""/>
+        <script lazy="false" type="text/javascript"><![CDATA[
+scwin.onpageload = function() {
+    $p.executeSubmission("submission1");
+};
+
+scwin.submission1_submitdone = function(e) {
+    // 서버 응답 구조:
+    // { technicalSupportInquiryListVo: { totalCount: 486, technicalSupportInquiryListVo: [...] } }
+    var responseMap = $p.getComponentById("responseMap");
+    var innerData = responseMap.get("technicalSupportInquiryListVo");
+
+    // innerData가 문자열이면 파싱
+    if (typeof innerData === "string") {
+        innerData = JSON.parse(innerData);
+    }
+
+    var totalCount = innerData.totalCount;
+    var listData = innerData.technicalSupportInquiryListVo;
+
+    console.log("총 건수: " + totalCount);
+
+    // dataList에 세팅
+    var dataList = $p.getComponentById("technicalSupportInquiryListVo");
+    dataList.setJSON(listData);
+
+    console.log("dataList 로드 완료: " + dataList.getTotalRow() + "건");
+};
+
+scwin.submission1_submiterror = function(e) {
+    console.log("submission 오류 발생");
+    console.log("errorType: " + e.errorType);
+    console.log("statusCode: " + e.responseStatusCode);
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload"/>
+</html>

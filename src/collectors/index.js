@@ -14,6 +14,9 @@ const path = require('path');
 const RAW_DIR = path.join(__dirname, '../../data/raw');
 const PROCESSED_DIR = path.join(__dirname, '../../data/processed');
 
+// Puppeteer 환경(Chromium 라이브러리)이 없는 서버에서는 W-Tech, W-Tech FAQ 자동 스킵
+const PUPPETEER_DISABLED = ['1', 'true'].includes(String(process.env.DISABLE_PUPPETEER).toLowerCase());
+
 async function ensureDirs() {
   await fs.mkdir(RAW_DIR, { recursive: true });
   await fs.mkdir(PROCESSED_DIR, { recursive: true });
@@ -35,10 +38,10 @@ async function collectAll(options = {}) {
 
   const collectors = [
     { name: 'gmail', instance: new GmailCollector(), enabled: options.gmail !== false },
-    { name: 'wtech', instance: new WTechCollector(), enabled: options.wtech !== false },
+    { name: 'wtech', instance: new WTechCollector(), enabled: options.wtech !== false && !PUPPETEER_DISABLED },
     { name: 'confluence', instance: new ConfluenceCollector(), enabled: options.confluence !== false },
     { name: 'apiGuide', instance: new ApiGuideCollector(), enabled: options.apiGuide !== false },
-    { name: 'wtechFaq', instance: new WTechFaqCollector(), enabled: options.wtechFaq !== false },
+    { name: 'wtechFaq', instance: new WTechFaqCollector(), enabled: options.wtechFaq !== false && !PUPPETEER_DISABLED },
   ];
 
   for (const { name, instance, enabled } of collectors) {

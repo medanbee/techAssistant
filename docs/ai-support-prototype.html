@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기술지원 AI 자동답변 시스템 프로토타입</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+:root{
+  --blue:#2563eb;--blue-light:#eff6ff;--blue-dark:#1e40af;
+  --green:#059669;--green-light:#dcfce7;
+  --amber:#d97706;--amber-light:#fffbeb;
+  --red:#dc2626;--red-light:#fef2f2;
+  --purple:#7c3aed;--purple-light:#f5f3ff;
+  --t1:#1e293b;--t2:#475569;--t3:#94a3b8;
+  --border:#e2e8f0;--bg:#f8fafc;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 6px rgba(0,0,0,.06),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 10px 15px rgba(0,0,0,.08),0 4px 6px rgba(0,0,0,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;background:var(--bg);color:var(--t1);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* Header */
+.header{background:#fff;border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px;box-shadow:var(--shadow-sm);position:sticky;top:0;z-index:100}
+.logo{font-weight:700;font-size:18px;display:flex;align-items:center;gap:3px}
+.logo .w{color:var(--blue);font-size:22px;font-style:italic}
+.logo .text{color:#1a1a6c}
+.nav{display:flex;gap:32px}
+.nav a{color:var(--t2);text-decoration:none;font-size:15px;font-weight:500;padding:18px 0;border-bottom:2px solid transparent;transition:all .15s}
+.nav a:hover{color:var(--blue)}
+.nav a.active{color:var(--blue);font-weight:700;border-bottom-color:var(--blue)}
+
+/* Container */
+.container{max-width:1100px;margin:0 auto;padding:28px 24px 48px}
+
+/* 문의 상세 */
+.question-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;box-shadow:var(--shadow)}
+.question-header{padding:22px 28px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:16px}
+.question-status{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;flex-shrink:0;white-space:nowrap}
+.question-status.pending{background:var(--amber-light);color:var(--amber)}
+.question-status.reviewing{background:var(--blue-light);color:var(--blue)}
+.question-status.resolved{background:var(--green-light);color:var(--green)}
+.question-title-area{flex:1}
+.question-title{font-size:19px;font-weight:700;margin-bottom:8px;color:var(--t1)}
+.question-meta{font-size:13px;color:var(--t3)}
+.question-meta span{margin-right:18px}
+.question-product{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--bg);border-radius:6px;font-size:13px;font-weight:500;border:1px solid var(--border)}
+
+.question-body{padding:28px}
+.question-section{margin-bottom:22px}
+.question-section:last-child{margin-bottom:0}
+.question-label{font-size:12px;font-weight:600;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.question-content{font-size:15px;color:var(--t1);line-height:1.85}
+.question-content code{background:var(--bg);padding:2px 7px;border-radius:4px;font-family:'Consolas','Menlo',monospace;font-size:13px;color:#be185d;border:1px solid var(--border)}
+
+/* AI 답변 섹션 */
+.ai-answer-section{background:#fff;border:1px solid #c7d2fe;border-radius:12px;overflow:hidden;margin-bottom:24px;box-shadow:0 2px 12px rgba(99,102,241,.08)}
+
+.ai-answer-header{
+  padding:22px 28px;
+  background:linear-gradient(135deg,#6d28d9 0%,#4f46e5 50%,#2563eb 100%);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.ai-icon{
+  width:44px;height:44px;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(8px);
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+}
+.ai-header-text h3{font-size:17px;font-weight:700;margin-bottom:3px}
+.ai-header-text p{font-size:13px;opacity:.8}
+.ai-badge{
+  margin-left:auto;
+  padding:6px 16px;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(8px);
+  border-radius:20px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.3px;
+}
+
+.ai-notice{
+  padding:14px 28px;
+  background:linear-gradient(135deg,#f5f3ff,#eef2ff);
+  border-bottom:1px solid #ddd6fe;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:13px;
+  color:#5b21b6;
+}
+.ai-notice-icon{font-size:16px}
+
+.ai-answer-body{padding:28px}
+.ai-answer-content{
+  font-size:15px;
+  line-height:1.9;
+  color:var(--t1);
+}
+.ai-answer-content p{margin-bottom:16px}
+.ai-answer-content p:last-child{margin-bottom:0}
+.ai-answer-content strong{color:var(--t1)}
+.ai-answer-content code{
+  background:#eef2ff;
+  padding:2px 7px;
+  border-radius:4px;
+  font-family:'Consolas','Menlo',monospace;
+  font-size:13px;
+  color:#4338ca;
+}
+.ai-answer-content pre{
+  background:#1e1b4b;
+  color:#c7d2fe;
+  padding:18px 22px;
+  border-radius:10px;
+  overflow-x:auto;
+  margin:16px 0;
+  font-family:'Consolas','Menlo',monospace;
+  font-size:13px;
+  line-height:1.6;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.3);
+}
+.ai-answer-content pre code{background:none;padding:0;color:inherit}
+
+/* 출처 */
+.ai-sources{
+  margin-top:24px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+}
+.ai-sources-title{font-size:13px;font-weight:600;color:var(--t2);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ai-source-list{display:flex;flex-direction:column;gap:8px}
+.ai-source-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 16px;
+  background:var(--bg);
+  border:1px solid transparent;
+  border-radius:10px;
+  font-size:13px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.ai-source-item:hover{background:var(--blue-light);border-color:#c7d2fe}
+.ai-source-icon{
+  width:32px;height:32px;
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;
+  flex-shrink:0;
+}
+.ai-source-icon.board{background:#dbeafe;color:var(--blue)}
+.ai-source-icon.email{background:#fef3c7;color:var(--amber)}
+.ai-source-icon.doc{background:#dcfce7;color:var(--green)}
+.ai-source-text{flex:1}
+.ai-source-title{font-weight:500;color:var(--t1);font-size:14px}
+.ai-source-meta{font-size:12px;color:var(--t3);margin-top:2px}
+.ai-source-match{font-size:12px;color:var(--green);font-weight:700;background:var(--green-light);padding:2px 8px;border-radius:10px}
+
+/* 신뢰도 */
+.ai-confidence{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:20px;
+  padding:14px 18px;
+  background:var(--bg);
+  border-radius:10px;
+  border:1px solid var(--border);
+}
+.ai-confidence-label{font-size:13px;color:var(--t3);font-weight:500}
+.ai-confidence-bar{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.ai-confidence-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.ai-confidence-fill.high{background:linear-gradient(90deg,#059669,#10b981);width:87%}
+.ai-confidence-fill.medium{background:linear-gradient(90deg,#d97706,#f59e0b);width:65%}
+.ai-confidence-fill.low{background:linear-gradient(90deg,#dc2626,#f87171);width:35%}
+.ai-confidence-value{font-size:15px;font-weight:700;color:var(--green)}
+
+/* 액션 버튼 */
+.ai-actions{
+  padding:24px 28px;
+  background:linear-gradient(180deg,#fafbff,var(--bg));
+  border-top:1px solid var(--border);
+}
+.ai-actions-title{font-size:14px;font-weight:700;color:var(--t1);margin-bottom:8px}
+.ai-actions-desc{font-size:13px;color:var(--t3);margin-bottom:18px}
+
+.ai-action-buttons{display:flex;gap:14px}
+.ai-action-btn{
+  flex:1;
+  padding:18px 22px;
+  border-radius:12px;
+  border:2px solid var(--border);
+  background:#fff;
+  cursor:pointer;
+  transition:all .2s;
+  text-align:left;
+  box-shadow:var(--shadow-sm);
+}
+.ai-action-btn:hover{border-color:var(--blue);background:var(--blue-light);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.ai-action-btn.selected{border-color:var(--blue);background:var(--blue-light)}
+.ai-action-btn.accept:hover,.ai-action-btn.accept.selected{border-color:var(--green);background:var(--green-light)}
+.ai-action-btn.request:hover,.ai-action-btn.request.selected{border-color:var(--amber);background:var(--amber-light)}
+
+.ai-action-icon{font-size:26px;margin-bottom:10px}
+.ai-action-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.ai-action-desc{font-size:13px;color:var(--t3)}
+
+/* 피드백 */
+.ai-feedback{
+  margin-top:18px;
+  padding:18px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:10px;
+  display:none;
+  box-shadow:var(--shadow);
+}
+.ai-feedback.show{display:block;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.ai-feedback-title{font-size:14px;font-weight:600;margin-bottom:12px}
+.ai-feedback textarea{
+  width:100%;
+  height:80px;
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  font-family:inherit;
+  font-size:14px;
+  resize:vertical;
+  transition:border-color .2s,box-shadow .2s;
+}
+.ai-feedback textarea:focus{outline:none;border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08)}
+.ai-feedback-actions{margin-top:14px;display:flex;justify-content:flex-end;gap:10px}
+
+.btn{
+  padding:10px 22px;
+  border-radius:8px;
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+  border:1px solid transparent;
+  transition:all .15s;
+}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 6px rgba(37,99,235,.2)}
+.btn-primary:hover{background:var(--blue-dark);box-shadow:0 3px 10px rgba(37,99,235,.3);transform:translateY(-1px)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 2px 6px rgba(5,150,105,.2)}
+.btn-success:hover{background:#047857;transform:translateY(-1px)}
+.btn-warning{background:var(--amber);color:#fff;border-color:var(--amber);box-shadow:0 2px 6px rgba(217,119,6,.2)}
+.btn-warning:hover{background:#b45309;transform:translateY(-1px)}
+.btn-secondary{background:#fff;color:var(--t2);border-color:var(--border)}
+.btn-secondary:hover{background:var(--bg);border-color:#cbd5e1}
+
+/* 기존 답변 목록 */
+.answers-section{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.answers-header{padding:18px 28px;border-bottom:1px solid var(--border);font-weight:700;font-size:15px}
+.answer-item{padding:22px 28px;border-bottom:1px solid var(--border)}
+.answer-item:last-child{border-bottom:none}
+.answer-meta{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.answer-author{font-weight:600;font-size:15px}
+.answer-date{font-size:13px;color:var(--t3)}
+.answer-badge{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.answer-badge.staff{background:var(--blue-light);color:var(--blue)}
+.answer-badge.ai{background:var(--purple-light);color:var(--purple)}
+.answer-content{font-size:15px;line-height:1.85}
+
+/* 데모 컨트롤 */
+.demo-controls{
+  position:fixed;
+  bottom:24px;
+  right:24px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.demo-btn{
+  padding:10px 18px;
+  background:linear-gradient(135deg,#1e293b,#334155);
+  color:#fff;
+  border:none;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  box-shadow:var(--shadow-lg);
+  transition:all .15s;
+}
+.demo-btn:hover{background:linear-gradient(135deg,#334155,#475569);transform:translateY(-2px)}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="logo"><span class="w">W</span><span class="text"> inswave</span></div>
+  <nav class="nav">
+    <a href="#">공지사항</a>
+    <a href="#" class="active">기술문의</a>
+    <a href="#">FAQ</a>
+    <a href="#">자료실</a>
+  </nav>
+</header>
+
+<div class="container">
+  
+  <!-- 문의 내용 -->
+  <div class="question-card">
+    <div class="question-header">
+      <span class="question-status reviewing" id="questionStatus">검토중</span>
+      <div class="question-title-area">
+        <h1 class="question-title">[AI] scheduleCalendar 날짜 색변경</h1>
+        <div class="question-meta">
+          <span>번호: 10906</span>
+          <span>작성자: 정원식</span>
+          <span>등록일: 2026-03-26</span>
+          <span>조회수: 25</span>
+        </div>
+      </div>
+      <div class="question-product">
+        <span style="color:var(--blue);font-weight:700">W5</span> WebSquare5
+      </div>
+    </div>
+    <div class="question-body">
+      <div class="question-section">
+        <div class="question-label">작성자 정보</div>
+        <div class="question-content">진행(투입) 프로젝트: 삼성전자 MES 고도화</div>
+      </div>
+      <div class="question-section">
+        <div class="question-label">개요</div>
+        <div class="question-content">
+          scheduleCalendar 컴포넌트에서 특정 날짜의 배경색을 변경하고 싶습니다.<br>
+          예를 들어 공휴일이나 특정 이벤트가 있는 날짜를 다른 색상으로 표시하려고 합니다.
+        </div>
+      </div>
+      <div class="question-section">
+        <div class="question-label">재현 방법</div>
+        <div class="question-content">
+          1. scheduleCalendar 컴포넌트 생성<br>
+          2. 특정 날짜 (예: 2026-03-27) 배경색을 빨간색으로 변경 시도<br>
+          3. <code>setDateStyle</code> API 사용 시 적용되지 않는 현상 발생
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 자동 답변 -->
+  <div class="ai-answer-section" id="aiAnswerSection">
+    <div class="ai-answer-header">
+      <div class="ai-icon">🤖</div>
+      <div class="ai-header-text">
+        <h3>AI 자동 답변</h3>
+        <p>기존 게시판 및 기술지원 이력을 분석하여 생성된 답변입니다</p>
+      </div>
+      <div class="ai-badge">Beta</div>
+    </div>
+    
+    <div class="ai-notice">
+      <span class="ai-notice-icon">ℹ️</span>
+      <span>본 답변은 AI가 기존 기술지원 데이터를 분석하여 자동 생성한 내용입니다. 정확성을 위해 검토 후 채택하시거나, 기술지원팀에 추가 답변을 요청하실 수 있습니다.</span>
+    </div>
+    
+    <div class="ai-answer-body">
+      <div class="ai-answer-content">
+        <p>안녕하세요. scheduleCalendar 컴포넌트의 날짜 배경색 변경 방법을 안내드립니다.</p>
+        
+        <p><strong>1. setDateCellStyle API 사용</strong></p>
+        <p>scheduleCalendar에서는 <code>setDateStyle</code> 대신 <code>setDateCellStyle</code> API를 사용해야 합니다.</p>
+        
+<pre><code>// 특정 날짜 배경색 변경
+var calendar = $p.getComponentById("scheduleCalendar1");
+calendar.setDateCellStyle("2026-03-27", {
+    "background-color": "#fee2e2",
+    "color": "#dc2626"
+});
+
+// 여러 날짜 일괄 적용
+var holidays = ["2026-03-01", "2026-05-05", "2026-06-06"];
+holidays.forEach(function(date) {
+    calendar.setDateCellStyle(date, {
+        "background-color": "#fee2e2"
+    });
+});</code></pre>
+
+        <p><strong>2. CSS 클래스 활용 방법</strong></p>
+        <p>스타일시트에 클래스를 정의하고 <code>setDateCellClass</code>를 사용할 수도 있습니다.</p>
+        
+<pre><code>/* CSS */
+.holiday-cell {
+    background-color: #fee2e2 !important;
+    color: #dc2626 !important;
+}
+
+// JavaScript
+calendar.setDateCellClass("2026-03-27", "holiday-cell");</code></pre>
+
+        <p><strong>참고사항</strong></p>
+        <p>- SP4 버전 이상에서 지원됩니다.<br>
+        - 동적으로 변경 시 <code>refresh()</code> 호출이 필요할 수 있습니다.</p>
+      </div>
+      
+      <!-- 출처 -->
+      <div class="ai-sources">
+        <div class="ai-sources-title">
+          <span>📚</span> 참고한 자료
+        </div>
+        <div class="ai-source-list">
+          <div class="ai-source-item">
+            <div class="ai-source-icon board">📋</div>
+            <div class="ai-source-text">
+              <div class="ai-source-title">scheduleCalendar 스타일 적용 문의</div>
+              <div class="ai-source-meta">게시판 #8234 · 2025-11-15 · 김철수</div>
+            </div>
+            <div class="ai-source-match">92% 일치</div>
+          </div>
+          <div class="ai-source-item">
+            <div class="ai-source-icon email">✉️</div>
+            <div class="ai-source-text">
+              <div class="ai-source-title">Re: Calendar 컴포넌트 날짜별 색상 지정</div>
+              <div class="ai-source-meta">기술지원 메일 · 2025-09-22</div>
+            </div>
+            <div class="ai-source-match">87% 일치</div>
+          </div>
+          <div class="ai-source-item">
+            <div class="ai-source-icon doc">📄</div>
+            <div class="ai-source-text">
+              <div class="ai-source-title">WebSquare5 API Reference - scheduleCalendar</div>
+              <div class="ai-source-meta">공식 문서</div>
+            </div>
+            <div class="ai-source-match">참조</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 신뢰도 -->
+      <div class="ai-confidence">
+        <span class="ai-confidence-label">답변 신뢰도</span>
+        <div class="ai-confidence-bar">
+          <div class="ai-confidence-fill high"></div>
+        </div>
+        <span class="ai-confidence-value">87%</span>
+      </div>
+    </div>
+    
+    <!-- 액션 -->
+    <div class="ai-actions">
+      <div class="ai-actions-title">이 답변이 도움이 되셨나요?</div>
+      <div class="ai-actions-desc">AI 답변을 채택하시거나, 기술지원팀의 추가 검토를 요청하실 수 있습니다.</div>
+      
+      <div class="ai-action-buttons">
+        <button class="ai-action-btn accept" onclick="selectAction('accept')">
+          <div class="ai-action-icon">✅</div>
+          <div class="ai-action-title">이 답변 채택</div>
+          <div class="ai-action-desc">AI 답변으로 문의가 해결되었습니다</div>
+        </button>
+        <button class="ai-action-btn request" onclick="selectAction('request')">
+          <div class="ai-action-icon">👨‍💼</div>
+          <div class="ai-action-title">추가 답변 요청</div>
+          <div class="ai-action-desc">기술지원팀의 검토가 필요합니다</div>
+        </button>
+        <button class="ai-action-btn" onclick="selectAction('partial')">
+          <div class="ai-action-icon">💬</div>
+          <div class="ai-action-title">부분적으로 도움됨</div>
+          <div class="ai-action-desc">추가 질문이 있습니다</div>
+        </button>
+      </div>
+      
+      <!-- 피드백 영역 -->
+      <div class="ai-feedback" id="feedbackAccept">
+        <div class="ai-feedback-title">AI 답변을 채택합니다</div>
+        <textarea placeholder="(선택) 추가 의견이 있으시면 작성해 주세요. AI 개선에 활용됩니다."></textarea>
+        <div class="ai-feedback-actions">
+          <button class="btn btn-secondary" onclick="cancelAction()">취소</button>
+          <button class="btn btn-success" onclick="confirmAccept()">채택 완료</button>
+        </div>
+      </div>
+      
+      <div class="ai-feedback" id="feedbackRequest">
+        <div class="ai-feedback-title">기술지원팀에 추가 답변을 요청합니다</div>
+        <textarea placeholder="추가로 확인이 필요한 사항을 작성해 주세요."></textarea>
+        <div class="ai-feedback-actions">
+          <button class="btn btn-secondary" onclick="cancelAction()">취소</button>
+          <button class="btn btn-warning" onclick="confirmRequest()">답변 요청</button>
+        </div>
+      </div>
+      
+      <div class="ai-feedback" id="feedbackPartial">
+        <div class="ai-feedback-title">추가 질문을 작성해 주세요</div>
+        <textarea placeholder="AI 답변에서 부족했던 부분이나 추가로 궁금한 점을 작성해 주세요."></textarea>
+        <div class="ai-feedback-actions">
+          <button class="btn btn-secondary" onclick="cancelAction()">취소</button>
+          <button class="btn btn-primary" onclick="confirmPartial()">질문 등록</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기존 답변 (채택 후 표시) -->
+  <div class="answers-section" id="answersSection" style="display:none">
+    <div class="answers-header">답변 1개</div>
+    <div class="answer-item">
+      <div class="answer-meta">
+        <span class="answer-badge ai">AI 자동답변</span>
+        <span class="answer-author">AI Assistant</span>
+        <span class="answer-date">2026-03-26 17:58</span>
+        <span style="margin-left:auto;color:var(--green);font-size:12px;font-weight:600">✓ 채택됨</span>
+      </div>
+      <div class="answer-content" id="acceptedAnswerContent">
+        <!-- AI 답변 내용이 여기에 복사됨 -->
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 데모 컨트롤 -->
+<div class="demo-controls">
+  <button class="demo-btn" onclick="resetDemo()">초기화</button>
+  <button class="demo-btn" onclick="showAcceptedState()">채택완료 상태</button>
+  <button class="demo-btn" onclick="showRequestedState()">요청완료 상태</button>
+</div>
+
+<script>
+let selectedActionType = null;
+
+function selectAction(type) {
+  // 모든 버튼 선택 해제
+  document.querySelectorAll('.ai-action-btn').forEach(btn => btn.classList.remove('selected'));
+  
+  // 모든 피드백 숨김
+  document.querySelectorAll('.ai-feedback').forEach(fb => fb.classList.remove('show'));
+  
+  // 선택된 버튼 활성화
+  event.target.closest('.ai-action-btn').classList.add('selected');
+  selectedActionType = type;
+  
+  // 해당 피드백 표시
+  if (type === 'accept') {
+    document.getElementById('feedbackAccept').classList.add('show');
+  } else if (type === 'request') {
+    document.getElementById('feedbackRequest').classList.add('show');
+  } else if (type === 'partial') {
+    document.getElementById('feedbackPartial').classList.add('show');
+  }
+}
+
+function cancelAction() {
+  document.querySelectorAll('.ai-action-btn').forEach(btn => btn.classList.remove('selected'));
+  document.querySelectorAll('.ai-feedback').forEach(fb => fb.classList.remove('show'));
+  selectedActionType = null;
+}
+
+function confirmAccept() {
+  showAcceptedState();
+  alert('AI 답변이 채택되었습니다. 감사합니다!');
+}
+
+function confirmRequest() {
+  showRequestedState();
+  alert('기술지원팀에 추가 답변을 요청했습니다. 담당자 배정 후 답변드리겠습니다.');
+}
+
+function confirmPartial() {
+  alert('추가 질문이 등록되었습니다. AI가 재분석 후 보완된 답변을 제공합니다.');
+}
+
+function showAcceptedState() {
+  // 상태 변경
+  const status = document.getElementById('questionStatus');
+  status.textContent = '해결';
+  status.className = 'question-status resolved';
+  
+  // AI 섹션 숨김
+  document.getElementById('aiAnswerSection').style.display = 'none';
+  
+  // 답변 섹션 표시
+  const answersSection = document.getElementById('answersSection');
+  answersSection.style.display = 'block';
+  
+  // AI 답변 내용 복사
+  document.getElementById('acceptedAnswerContent').innerHTML = 
+    document.querySelector('.ai-answer-content').innerHTML;
+}
+
+function showRequestedState() {
+  const status = document.getElementById('questionStatus');
+  status.textContent = '검토중';
+  status.className = 'question-status reviewing';
+  
+  // 액션 영역 변경
+  const actions = document.querySelector('.ai-actions');
+  actions.innerHTML = `
+    <div style="text-align:center;padding:20px;">
+      <div style="font-size:32px;margin-bottom:12px;">📨</div>
+      <div style="font-weight:600;margin-bottom:8px;">기술지원팀에 추가 답변을 요청했습니다</div>
+      <div style="font-size:13px;color:var(--t3);">담당자 배정 후 순차적으로 답변드리겠습니다.</div>
+    </div>
+  `;
+}
+
+function resetDemo() {
+  location.reload();
+}
+</script>
+</body>
+</html>

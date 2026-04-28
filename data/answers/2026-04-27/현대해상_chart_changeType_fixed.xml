@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head>
+    <!--
+      [중요] waterfall2d 는 PowerCharts XT 에 포함된 차트.
+      fusioncharts.js 단독으로는 차트 타입을 인식하지 못해 "Loading chart. Please wait" 에서 멈춤.
+      반드시 powercharts.js 를 함께 import 해야 함.
+
+      사내망에서 CDN 차단 시(CORS 에러) 아래 src 를 로컬 경로로 교체:
+        ../../externalJS/fusioncharts/fusioncharts.js
+        ../../externalJS/fusioncharts/fusioncharts.powercharts.js
+        ../../externalJS/fusioncharts/fusioncharts.theme.fusion.js
+    -->
+    <script src="https://cdn.fusioncharts.com/fusioncharts/latest/fusioncharts.js"></script>
+    <script src="https://cdn.fusioncharts.com/fusioncharts/latest/fusioncharts.powercharts.js"></script>
+    <script src="https://cdn.fusioncharts.com/fusioncharts/latest/themes/fusioncharts.theme.fusion.js"></script>
+
+        <w2:type>DEFAULT</w2:type>
+        <w2:buildDate/>
+        <w2:MSA/>
+        <xf:model>
+            <w2:dataCollection baseNode="map"/>
+            <w2:workflowCollection/>
+        </xf:model>
+        <w2:layoutInfo/>
+        <w2:publicInfo method=""/>
+        <script lazy="false" type="text/javascript"><![CDATA[
+scwin.onpageload = function () {
+    // 초기(Column2D) 데이터 — wrapper 의 단순 포맷
+    var jsonData = {
+        "data": [
+            { "value": "490000", "label": "China"  },
+            { "value": "340000", "label": "USA"    },
+            { "value": "160000", "label": "Brazil" },
+            { "value": "220000", "label": "Spain"  },
+            { "value": "123000", "label": "India"  }
+        ]
+    };
+    chart1.setJSONData(jsonData);
+};
+
+scwin.trigger1_onclick = function (e) {
+    chart1.changeType("line");
+};
+
+scwin.trigger2_onclick = function (e) {
+    chart1.changeType("funnel");
+};
+
+scwin.trigger3_onclick = function (e) {
+    // 1) 먼저 wrapper 의 changeType 으로 native 차트 인스턴스를 waterfall2d 로 재생성
+    chart1.changeType("waterfall2d");
+
+    // 2) waterfall2d 전용 native 포맷 데이터 (issum/cumulative/chart 옵션 포함)
+    var jsonData = {
+        "chart": {
+            "theme": "fusion",
+            "caption": "Total Profit Calculation",
+            "subcaption": "Last month",
+            "yAxisname": "Amount (In USD)",
+            "numberprefix": "$",
+            "connectordashed": "1",
+            "sumlabel": "Total {br} Profit"
+        },
+        "data": [
+            { "label": "Online sales",    "value": "420000" },
+            { "label": "Store Sales",     "value": "710000" },
+            { "label": "Total Sales",     "issum": "1" },
+            { "label": "Fixed Costs",     "value": "-250000" },
+            { "label": "Variable Costs",  "value": "-156000" },
+            { "label": "COGS",            "value": "-310000" },
+            { "label": "Promotion Costs", "value": "-86000" },
+            { "label": "Total Costs",     "issum": "1", "cumulative": "0" }
+        ]
+    };
+
+    // 3) wrapper.setJSONData 는 native 포맷(issum/chart 등) 처리 불가.
+    //    chart1.fc() 로 native FusionCharts 객체에 직접 주입 후 render.
+    var fc = chart1.fc();
+    fc.setJSONData(jsonData);
+    fc.render();
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload">
+    <xf:group id="" style="margin: 10px;">
+        <w2:textbox tagname="h1" style="color: blue;margin-bottom: 10px;" tabIndex="h1" id="textbox1"
+            label="차트 유형을 동적으로 변경" escape="false">
+        </w2:textbox>
+        <w2:textbox tagname="h2" style="height: 23px;margin-bottom: 10px;color: blue;" id="textbox2"
+            label="샘플 사용 방법"></w2:textbox>
+        <w2:textbox style="color: blue;margin-bottom: 30px;" id="textbox3"
+            label='1. 하단의 changeType() 버튼을 각각 클릭. &lt;br/&gt;2. 각 버튼을 클릭할 때마다 지정한 유형의 차트로 변경되는 것을 확인.'
+            escape="false">
+        </w2:textbox>
+        <xf:trigger ev:onclick="scwin.trigger1_onclick"
+            style="height:42px;line-height:32px;padding:5px;background-color:coral;font-size:15px;font-weight:bolder;text-align: left;display: block;margin-bottom: 10px;"
+            id="trigger1" type="button">
+            <xf:label><![CDATA[chart1.changeType("line");]]></xf:label>
+        </xf:trigger>
+        <xf:trigger type="button" id="trigger2"
+            style="height:42px;line-height:32px;padding:5px;background-color:coral;font-size:15px;font-weight:bolder;text-align: left;display: block;margin-bottom: 10px;"
+            ev:onclick="scwin.trigger2_onclick">
+            <xf:label><![CDATA[chart1.changeType("funnel");]]></xf:label>
+        </xf:trigger>
+        <xf:trigger type="button" id="trigger3"
+            style="height:42px;line-height:32px;padding:5px;background-color:coral;font-size:15px;font-weight:bolder;text-align: left;display: block;margin-bottom: 10px;"
+            ev:onclick="scwin.trigger3_onclick">
+            <xf:label><![CDATA[chart1.changeType("waterfall2d");]]></xf:label>
+        </xf:trigger>
+        <w2:fusionchart seriesType="simple" drawType="javascript" runflashAt="IE6,IE7,IE8" chartType="Column2D"
+            style="width: 680px;height: 390px;" id="chart1">
+        </w2:fusionchart>
+    </xf:group></body>
+</html>

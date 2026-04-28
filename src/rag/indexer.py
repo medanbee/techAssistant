@@ -4,6 +4,7 @@ ChromaDB + multilingual-e5-base (768차원)
 100건 단위 배치 처리, 개별 재시도 로직, 텍스트 전처리 적용
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -58,9 +59,29 @@ class RAGIndexer:
         print(f"[RAG Indexer] 데이터 로드: {len(data)}건")
         return data
 
+    def _make_doc_id(self, item):
+        """내용 기반 고유 ID 생성 (해시)"""
+        key = (item.get("question", "") + "|" + item.get("answer", "")[:200]).encode("utf-8")
+        return "doc_" + hashlib.md5(key).hexdigest()[:12]
+
     def index(self, data, reset=False):
-        """전체 데이터 인덱싱 (100건 배치)"""
+        """증분 인덱싱 — 신규 데이터만 임베딩 (reset=True면 전체 재인덱싱)"""
         self.init_collection(reset=reset)
+
+        # 기존 ID 조회하여 신규분만 필터링
+        if not reset:
+            existing_ids = set(self.collection.get()["ids"]) if self.collection.count() > 0 else set()
+            new_data = []
+            for item in data:
+                if self._make_doc_id(item) not in existing_ids:
+                    new_data.append(item)
+            skipped = len(data) - len(new_data)
+            print(f"[RAG Indexer] 기존 {skipped}건 스킵, 신규 {len(new_data)}건 인덱싱")
+            if len(new_data) == 0:
+                print("[RAG Indexer] 신규 데이터 없음. 인덱싱 완료.")
+                print(f"[RAG Indexer] 컬렉션 총 문서 수: {self.collection.count()}")
+                return
+            data = new_data
 
         total = len(data)
         indexed = 0
@@ -68,7 +89,7 @@ class RAGIndexer:
 
         for i in range(0, total, BATCH_SIZE):
             batch = data[i : i + BATCH_SIZE]
-            batch_success = self._index_batch(batch, start_idx=i)
+            batch_success = self._index_batch(batch)
             indexed += batch_success
             failed += len(batch) - batch_success
             print(f"[RAG Indexer] 진행: {min(i + BATCH_SIZE, total)}/{total} (성공: {indexed}, 실패: {failed})")
@@ -76,18 +97,18 @@ class RAGIndexer:
         print(f"\n[RAG Indexer] 인덱싱 완료: {indexed}건 성공, {failed}건 실패")
         print(f"[RAG Indexer] 컬렉션 총 문서 수: {self.collection.count()}")
 
-    def _index_batch(self, batch, start_idx=0):
+    def _index_batch(self, batch):
         """배치 인덱싱 (개별 재시도 로직)"""
         documents = []
         metadatas = []
         ids = []
 
-        for j, item in enumerate(batch):
+        for item in batch:
             doc_text = make_clean_document(item)
             if not doc_text.strip():
                 continue
 
-            doc_id = f"doc_{start_idx + j}"
+            doc_id = self._make_doc_id(item)
             metadata = extract_metadata(item)
 
             documents.append(doc_text)

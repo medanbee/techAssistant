@@ -6,6 +6,7 @@ const express = require('express');
 const { execFileSync } = require('child_process');
 const path = require('path');
 const Classifier = require('../../classifier/classifier');
+const { parseRagResults, toSources, calculateConfidence } = require('../../rag/parseRagResults');
 
 const router = express.Router();
 const classifier = new Classifier();
@@ -39,7 +40,7 @@ router.post('/', (req, res) => {
 
     const output = execFileSync(pythonPath, args, {
       encoding: 'utf8',
-      timeout: 60000,
+      timeout: 180000,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
     });
 
@@ -59,55 +60,54 @@ router.post('/', (req, res) => {
   }
 });
 
-/**
- * RAG 출력 파싱
- * 형식: #1 [최종: 0.89 | 벡터: 0.90 | BM25: 0.89] 출처
- *         질문: ...
- */
-function parseRagResults(output) {
-  if (!output) return [];
+// POST /api/search/enhanced — W-Tech 표준 응답 (Claude API 미사용 폴백)
+router.post('/enhanced', (req, res) => {
+  const { query, topK, categoryFilter } = req.body;
 
-  const cases = [];
-  // #N [최종: X | 벡터: Y | BM25: Z] 출처
-  const pattern = /#(\d+)\s+\[최종:\s*([\d.]+)\s*\|.*?\]\s*(.*)/g;
-  let match;
-
-  while ((match = pattern.exec(output)) !== null) {
-    const rank = parseInt(match[1], 10);
-    const similarity = match[2];
-    const source = match[3].trim();
-
-    // 이 매치 이후부터 다음 #N 또는 끝까지의 텍스트 추출
-    const startIdx = match.index + match[0].length;
-    const nextMatch = output.indexOf('\n#', startIdx);
-    const block = output.slice(startIdx, nextMatch === -1 ? undefined : nextMatch).trim();
-
-    // "질문:" 라인에서 제목 추출
-    const lines = block.split('\n');
-    let title = '';
-    const contentLines = [];
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('질문:')) {
-        title = trimmed.replace('질문:', '').trim();
-      } else if (trimmed.startsWith('답변:')) {
-        contentLines.push(trimmed.replace('답변:', '').trim());
-      } else if (trimmed && trimmed !== '---') {
-        contentLines.push(trimmed);
-      }
-    }
-
-    cases.push({
-      rank,
-      title: title || `사례 ${rank}`,
-      source,
-      similarity: `${(parseFloat(similarity) * 100).toFixed(1)}%`,
-      content: contentLines.join('\n').trim() || title,
-    });
+  if (!query || !query.trim()) {
+    return res.status(400).json({ error: '검색어(query)를 입력해주세요.' });
   }
 
-  return cases;
-}
+  try {
+    const args = [
+      searcherPath,
+      query,
+      '--top-k', String(topK || 8),
+    ];
+    if (categoryFilter) {
+      args.push('--category', categoryFilter);
+    }
+
+    const output = execFileSync(pythonPath, args, {
+      encoding: 'utf8',
+      timeout: 180000,
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+    });
+
+    const cases = parseRagResults(output);
+    const sources = toSources(cases);
+    const confidence = calculateConfidence(cases);
+
+    const draftAnswer = cases.length > 0
+      ? `내부 데이터에서 유사 사례 ${cases.length}건을 찾았습니다. 담당자 확인 후 답변 예정입니다.`
+      : '내부 데이터에서 유사 사례가 확인되지 않았습니다. 담당자가 직접 답변을 작성합니다.';
+
+    res.json({
+      draftAnswer,
+      confidence,
+      sources,
+      attachments: [],
+    });
+  } catch (err) {
+    console.error('[API /search/enhanced] 실패:', err);
+    res.json({
+      draftAnswer: '',
+      confidence: 0,
+      sources: [],
+      failReason: '04',
+      failDescription: `시스템 오류: ${err.message}`,
+    });
+  }
+});
 
 module.exports = router;

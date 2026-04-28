@@ -35,12 +35,24 @@ function buildSystemPrompt(answerConfig, hasRagResults) {
 
 ${ragRule}
 2. **답변 구조** — 원인 분석 → 해결 방법 → 추가 확인 사항 순서로 작성합니다.
-3. **코드/설정 포함** — 가능하면 XML/JavaScript 코드 예시 또는 설정 경로를 포함합니다.
+3. **코드 예시 규칙**
+   - 참고자료에 코드 예시가 있으면 해당 코드를 우선 활용합니다 (검증된 코드).
+   - 참고자료에 정확히 매칭되는 코드가 없어 새로 작성하는 경우, 코드 블록 아래에 반드시 "※ 위 코드는 유사 사례 기반 참고용입니다. 실제 동작 확인 후 적용해주세요."를 표기합니다.
+   - WebSquare 엔진에서만 동작하는 코드는 직접 테스트할 수 없으므로, 검증되지 않은 코드임을 명시합니다.
 4. **표 형식 활용** — 속성/옵션은 표 형태로 정리합니다.
 ${sourceRule}
-6. **개인정보 제외** — 개인명, 이메일, 회사명, 프로젝트명 등 식별 정보를 절대 포함하지 않습니다.
-7. **버전 고려** — WebSquare 버전, POI/servlet 버전 차이를 반드시 고려합니다.
-8. **정보 부족 시** — 사용 중인 버전, 라이브러리, 에러 메시지를 확인하는 추가 질문을 포함합니다.
+6. **출처에 RAG 유사도 포함** — 참고한 사례의 출처에 RAG 검색 유사도 점수를 함께 표기합니다.
+7. **API/이벤트/속성명 정확성**
+   - 참고자료에 존재하지 않는 WebSquare API, 이벤트, 속성명을 절대 만들어내지 마십시오.
+   - 다른 컴포넌트의 API를 해당 컴포넌트에도 있다고 추측하지 마십시오. 참고자료에서 정확히 확인된 것만 사용합니다.
+   - 확실하지 않은 API는 "확인이 필요합니다"로 표기합니다.
+8. **개인정보 제외** — 개인명, 이메일, 회사명, 프로젝트명 등 식별 정보를 절대 포함하지 않습니다.
+9. **버전 고려** — WebSquare 버전, POI/servlet 버전 호환성을 반드시 고려합니다.
+10. **버전 존재 검증** — 답변에 특정 소프트웨어 버전을 언급할 때, 해당 버전이 실제 존재하는지 확인합니다.
+   - 엔진 파일명에서 버전을 추출할 때 네이밍 규칙에 주의: 예) "poi4_1.8"은 "POI 4.x + Java 1.8"이지 "POI 4.1.8"이 아닙니다.
+   - Apache POI 4.x 마지막 버전은 4.1.2입니다. (4.1.8은 존재하지 않음)
+   - 파일명의 _1.5, _1.8 접미사는 Java/Servlet 버전을 의미합니다.
+11. **정보 부족 시** — 사용 중인 버전, 라이브러리, 에러 메시지를 확인하는 추가 질문을 포함합니다.
 
 답변은 반드시 아래 템플릿 형식으로 작성하십시오:
 ---
@@ -127,6 +139,61 @@ class AnswerGenerator {
       : 'WebSquare 공식 문서 및 일반적인 기술 지식을 기반으로 기술지원 답변 초안을 작성해 주세요.';
 
     return message;
+  }
+
+  /**
+   * 추가 문의에 대한 재답변 생성 (대화 맥락 유지)
+   *
+   * @param {string} originalQuestion - 원래 문의
+   * @param {string} previousAnswer - AI 첫 답변
+   * @param {string} followUp - 고객 추가 질문
+   * @param {string} ragContext - RAG 검색 결과 컨텍스트
+   * @param {object} options - 추가 옵션
+   * @returns {object} - { answer, usage, model, hasRagResults }
+   */
+  async followUp(originalQuestion, previousAnswer, followUp, ragContext, options = {}) {
+    const hasRagResults = !!(ragContext && !ragContext.includes('관련 사례를 찾지 못했습니다'));
+    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
+
+    let message = '';
+
+    if (hasRagResults) {
+      const trimmedContext = ragContext.substring(0, MAX_TOTAL_CONTEXT);
+      message += `## 참고 사례 (RAG 검색 결과)\n\n${trimmedContext}\n\n`;
+    }
+
+    if (options.version) {
+      message += `## 고객 환경\n- WebSquare 버전: ${options.version}\n\n`;
+    }
+
+    message += `## 원래 문의\n\n${originalQuestion}\n\n`;
+    message += `## 이전 AI 답변\n\n${previousAnswer}\n\n`;
+    message += `## 고객 추가 문의\n\n${followUp}\n\n`;
+    message += '위 대화 맥락을 바탕으로, 고객의 추가 문의에 대한 답변을 작성해 주세요. 이전 답변과 중복되는 내용은 최소화하고, 추가 문의에 집중하여 답변합니다.';
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: message },
+      ],
+    });
+
+    const answer = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
+
+    return {
+      answer,
+      hasRagResults,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+      model: response.model,
+    };
   }
 
   /**

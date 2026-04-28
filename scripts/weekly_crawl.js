@@ -11,6 +11,8 @@
  */
 
 const GmailCollector = require('../src/collectors/gmailCollector');
+const WTechCollector = require('../src/collectors/wtechCollector');
+const { ConfluenceCollector } = require('../src/collectors/confluenceCollector');
 const { loadConfig } = require('../src/utils/config');
 const { execSync } = require('child_process');
 const fs = require('fs').promises;
@@ -78,22 +80,24 @@ async function crawlGmail(afterDate) {
 
 // ── 2. W-Tech 크롤링 ──
 async function crawlWTech() {
+  if (['1', 'true'].includes(String(process.env.DISABLE_PUPPETEER).toLowerCase())) {
+    await log('[W-Tech] DISABLE_PUPPETEER=1 — 스킵');
+    return;
+  }
   await log('[W-Tech] 크롤링 시작 (증분)...');
-  execSync(
-    `node "${path.join(ROOT, 'src/collectors/legacy/qna_crawl_v2.js')}"`,
-    { stdio: 'inherit', timeout: 600000 }
-  );
-  await log('[W-Tech] 크롤링 완료');
+  const collector = new WTechCollector();
+  await collector.collect(); // 체크포인트 기반 증분: 연속 10건 기존 글이면 자동 종료
+  await collector.save(RAW_DIR);
+  await log(`[W-Tech] 크롤링 완료: 표준 QA ${collector.collectedData.length}건`);
 }
 
 // ── 3. Confluence 크롤링 ──
-async function crawlConfluence(sinceDate) {
-  await log(`[Confluence] 크롤링 시작 (since: ${sinceDate})...`);
-  execSync(
-    `node "${path.join(ROOT, 'src/collectors/legacy/confluence_crawl.js')}" --since ${sinceDate}`,
-    { stdio: 'inherit', timeout: 1800000 }
-  );
-  await log('[Confluence] 크롤링 완료');
+async function crawlConfluence() {
+  await log('[Confluence] 크롤링 시작...');
+  const collector = new ConfluenceCollector();
+  await collector.collect(); // 5개 스페이스 전체 재수집 (~5~7분, fetch 기반이라 빠름)
+  await collector.save(RAW_DIR);
+  await log(`[Confluence] 크롤링 완료: ${collector.collectedData.length}건`);
 }
 
 // ── 메인 ──
@@ -112,7 +116,7 @@ async function main() {
   const tasks = [
     { name: 'Gmail', fn: () => crawlGmail(afterDate) },
     { name: 'W-Tech', fn: () => crawlWTech() },
-    { name: 'Confluence', fn: () => crawlConfluence(sinceStr) },
+    { name: 'Confluence', fn: () => crawlConfluence() },
   ];
 
   for (const task of tasks) {

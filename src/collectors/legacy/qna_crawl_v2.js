@@ -5,8 +5,8 @@ const path = require('path');
 const MAIN_URL = 'https://wtech.inswave.kr/websquare/websquare.html?w2xPath=/cm/xml/index.xml';
 const OUTPUT_FILE = path.join(__dirname, '..', '..', '..', 'data', 'raw', 'wtech-qa', 'qna_data.json');
 
-const EMAIL = 'medanbee@inswave.com';
-const PASSWORD = 'sweetrain00!';
+const EMAIL = '';
+const PASSWORD = '';
 
 const GRID_PREFIX = 'mf_wfm_content_qnaList';
 

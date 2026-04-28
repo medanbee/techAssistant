@@ -56,10 +56,7 @@ function loadJSON(filePath) {
 //   2) messageCount>1이면 content 전체를 답변, subject를 질문으로
 //   3) messageCount=1이라도 기술 내용이면 subject=질문, content=답변으로 보존
 async function convertGmail() {
-  // 새 크롤링 데이터 우선, 없으면 기존 데이터 사용
-  const newPath = path.join(RAW_DIR, 'gmail_qa.json');
-  const oldPath = path.join(RAW_DIR, 'gmail/email_technical_qna.json');
-  const filePath = await fs.access(newPath).then(() => newPath).catch(() => oldPath);
+  const filePath = path.join(RAW_DIR, 'gmail_qa.json');
   let data;
   try { data = await loadJSON(filePath); } catch { return []; }
 

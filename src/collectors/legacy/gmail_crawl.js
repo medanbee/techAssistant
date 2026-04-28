@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const CONFIG = {
-  gmail: 'medanbee@inswave.com',
-  gmail_app_pw: 'maeb dnkn kjux blvp',
+  gmail: '',
+  gmail_app_pw: '',
   dataPath: path.join(__dirname, '..', 'data', 'email', 'email_technical_qna.json'),
   tempPath: path.join(__dirname, '..', 'data', 'email', 'crawl_progress.json'),
   excludeKeywords: ['라이선스 발급', '라이선스키 전달', '데모라이선스 전달'],

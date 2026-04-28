@@ -10,6 +10,7 @@ const Classifier = require('../classifier/classifier');
 const AnswerGenerator = require('./answerGenerator');
 const ApiVerifier = require('./apiVerifier');
 const { addToQueue } = require('../api/queue');
+const { parseRagResults } = require('../rag/parseRagResults');
 
 class AnswerPipeline {
   constructor() {
@@ -106,6 +107,73 @@ class AnswerPipeline {
   }
 
   /**
+   * 재답변 파이프라인 — 원래 문의 + 이전 답변 + 추가 질문 맥락 유지
+   *
+   * @param {object} context - { originalQuestion, previousAnswer, followUp }
+   * @param {object} options - { version, libraries, topK }
+   * @returns {object} - { answer, ragResults, usage, model, verification, savedPath }
+   */
+  async processFollowUp(context, options = {}) {
+    const { originalQuestion, previousAnswer, followUp } = context;
+
+    console.log('[파이프라인] 재답변 시작...');
+
+    // 1. 추가 질문 기준으로 RAG 재검색
+    const ragResult = this._searchRAG(followUp, options);
+    console.log(`[파이프라인] RAG 재검색: ${ragResult.resultCount}건`);
+
+    // 2. 재답변 생성
+    let result = await this.generator.followUp(
+      originalQuestion, previousAnswer, followUp, ragResult.context,
+      { version: options.version, libraries: options.libraries }
+    );
+    console.log(`[파이프라인] 재답변 생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+
+    // 3. API 검증
+    let verification = this.verifier.verify(result.answer);
+    console.log(`[파이프라인] ${verification.summary}`);
+
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    while (verification.unverified.length > 0 && retryCount < MAX_RETRIES) {
+      retryCount++;
+      const invalidApis = verification.unverified.map(r => r.name);
+      console.log(`[파이프라인] 미확인 API → 재생성 (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
+
+      result = await this.generator.regenerate(
+        followUp, ragResult.context, result.answer, invalidApis,
+        { version: options.version, libraries: options.libraries }
+      );
+      verification = this.verifier.verify(result.answer);
+      console.log(`[파이프라인] ${verification.summary}`);
+    }
+
+    if (verification.unverified.length > 0) {
+      result.answer += '\n\n---\n⚠️ **검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
+      for (const item of verification.unverified) {
+        result.answer += `- \`${item.name}\`\n`;
+      }
+    }
+
+    // 4. 저장
+    const savedPath = this._saveAnswer(followUp, result, this.classifier.classify({ question: followUp, answer: '' }));
+    if (savedPath) {
+      console.log(`[파이프라인] 재답변 저장: ${savedPath}`);
+    }
+
+    return {
+      followUp,
+      ragResults: ragResult,
+      answer: result.answer,
+      hasRagResults: result.hasRagResults,
+      usage: result.usage,
+      model: result.model,
+      verification,
+      savedPath,
+    };
+  }
+
+  /**
    * RAG 검색 실행 (Python 프로세스 호출)
    */
   _searchRAG(query, options) {
@@ -126,18 +194,20 @@ class AnswerPipeline {
 
       const output = execFileSync(pythonPath, args, {
         encoding: 'utf8',
-        timeout: 60000,
+        timeout: 180000,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
       });
 
       // Python 스크립트의 stdout에서 컨텍스트 파싱
+      const cases = parseRagResults(output);
       return {
         context: output,
-        resultCount: (output.match(/--- 참고 사례/g) || []).length,
+        resultCount: cases.length || (output.match(/--- 참고 사례/g) || []).length,
+        cases,
       };
     } catch (err) {
       console.warn('[파이프라인] RAG 검색 실패:', err.message);
-      return { context: '', resultCount: 0 };
+      return { context: '', resultCount: 0, cases: [] };
     }
   }
   /**

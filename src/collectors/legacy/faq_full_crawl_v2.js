@@ -8,8 +8,8 @@ const ORIGINAL_FILE = path.join(__dirname, '..', 'data', 'wtech', 'faq_data.json
 const COOKIE_FILE = path.join(__dirname, 'wtech_cookies.json');
 
 const MAIN_URL = 'https://wtech.inswave.kr/websquare/websquare.html?w2xPath=/cm/xml/index.xml';
-const EMAIL = 'medanbee@inswave.com';
-const PASSWORD = 'sweetrain00!';
+const EMAIL = '';
+const PASSWORD = '';
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 

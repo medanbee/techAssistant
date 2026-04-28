@@ -1,7 +1,13 @@
 {
   "gmail": {
     "user": "your-email@gmail.com",
-    "appPassword": "your-gmail-app-password",
+    "authType": "oauth2",
+    "oauth": {
+      "clientId": "your-google-oauth-client-id.apps.googleusercontent.com",
+      "clientSecret": "your-google-oauth-client-secret",
+      "refreshToken": ""
+    },
+    "appPassword": "",
     "searchQueries": [
       "subject:(기술문의)",
       "subject:(기술지원)",
@@ -51,11 +57,10 @@
     }
   },
   "confluence": {
-    "baseUrl": "https://your-confluence-url.com",
-    "loginUrl": "https://your-confluence-url.com/login",
-    "credentials": {
-      "username": "",
-      "password": ""
+    "baseUrl": "https://your-site.atlassian.net/wiki",
+    "auth": {
+      "email": "your-email@example.com",
+      "apiToken": "your-atlassian-api-token"
     }
   },
   "apiGuide": {

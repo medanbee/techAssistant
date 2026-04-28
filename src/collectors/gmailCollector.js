@@ -9,6 +9,7 @@
  */
 
 const Imap = require('imap');
+const { google } = require('googleapis');
 const { simpleParser } = require('mailparser');
 const { maskPersonalInfo } = require('../utils/masking');
 const { convertToQA } = require('../utils/converter');
@@ -37,27 +38,63 @@ class GmailCollector {
   }
 
   /**
-   * IMAP 연결 생성
+   * OAuth2 refresh token으로 access token 발급 후 XOAUTH2 SASL 토큰 생성
    */
-  _createConnection() {
-    return new Imap({
+  async _getXOAuth2Token() {
+    const { clientId, clientSecret, refreshToken } = this.config.oauth || {};
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error(
+        'Gmail OAuth 설정 누락 (clientId/clientSecret/refreshToken). ' +
+        'node scripts/gmail-oauth-setup.js 를 먼저 실행하세요.'
+      );
+    }
+
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+    const { token: accessToken } = await oauth2Client.getAccessToken();
+    if (!accessToken) {
+      throw new Error('Gmail OAuth access token 발급 실패. refresh token 만료 가능성 — 재인증 필요.');
+    }
+
+    const authString = `user=${this.config.user}\x01auth=Bearer ${accessToken}\x01\x01`;
+    return Buffer.from(authString).toString('base64');
+  }
+
+  /**
+   * IMAP 연결 생성 (OAuth2 또는 App Password)
+   */
+  async _createConnection() {
+    const useOAuth =
+      this.config.authType === 'oauth2' ||
+      (this.config.oauth && this.config.oauth.refreshToken);
+
+    const opts = {
       user: this.config.user,
-      password: this.config.appPassword,
       host: 'imap.gmail.com',
       port: 993,
       tls: true,
       tlsOptions: { rejectUnauthorized: false },
       connTimeout: 30000,
       authTimeout: 15000,
-    });
+    };
+
+    if (useOAuth) {
+      opts.xoauth2 = await this._getXOAuth2Token();
+    } else {
+      opts.password = this.config.appPassword;
+    }
+
+    return new Imap(opts);
   }
 
   /**
    * IMAP 연결 및 메일박스 오픈
    */
   async connect() {
+    this.imap = await this._createConnection();
     return new Promise((resolve, reject) => {
-      this.imap = this._createConnection();
       this.imap.once('ready', () => {
         this.imap.openBox('INBOX', true, (err) => {
           if (err) return reject(err);

@@ -5,6 +5,7 @@
   "main": "src/collectors/index.js",
   "scripts": {
     "collect": "node scripts/collect.js",
+    "gmail:auth": "node scripts/gmail-oauth-setup.js",
     "collect:gmail": "node scripts/collect.js --source gmail",
     "collect:wtech": "node scripts/collect.js --source wtech",
     "collect:confluence": "node scripts/collect.js --source confluence",
@@ -21,11 +22,13 @@
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "googleapis": "^171.4.0",
     "imap": "^0.8.19",
     "mailparser": "^3.7.1",
+    "node-fetch": "^2.7.0",
     "puppeteer": "^23.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
   }
 }

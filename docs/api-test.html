@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>TechAssistant API 테스트</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: #0d1117; color: #e6edf3;
+    margin: 0; padding: 24px; max-width: 1200px; margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 24px; }
+  .status {
+    display: inline-block; padding: 4px 10px; border-radius: 12px;
+    font-size: 12px; margin-left: 8px;
+  }
+  .status.ok { background: #1f6f3f; color: #b6f5c4; }
+  .status.fail { background: #6f1f1f; color: #f5b6b6; }
+  .status.warn { background: #6f5f1f; color: #f5e0b6; }
+
+  .endpoint {
+    border: 1px solid #30363d; border-radius: 8px;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .endpoint-header {
+    background: #161b22; padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #30363d;
+  }
+  .method {
+    font-weight: 700; font-size: 12px;
+    padding: 3px 8px; border-radius: 4px; min-width: 50px; text-align: center;
+  }
+  .method.GET { background: #1f4068; color: #79c0ff; }
+  .method.POST { background: #1f6f3f; color: #7ee787; }
+  .path { font-family: Consolas, monospace; font-size: 14px; }
+  .desc { color: #8b949e; font-size: 13px; margin-left: auto; }
+
+  .endpoint-body { padding: 16px; }
+  .endpoint-body label {
+    display: block; font-size: 12px; color: #8b949e; margin: 8px 0 4px;
+  }
+  .endpoint-body input, .endpoint-body textarea {
+    width: 100%; background: #0d1117; color: #e6edf3;
+    border: 1px solid #30363d; border-radius: 4px;
+    padding: 8px; font-family: Consolas, monospace; font-size: 13px;
+  }
+  .endpoint-body textarea { min-height: 60px; resize: vertical; }
+  .row { display: flex; gap: 12px; }
+  .row > * { flex: 1; }
+
+  button {
+    background: #238636; color: #fff; border: none;
+    padding: 8px 16px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; font-weight: 600; margin-top: 12px;
+  }
+  button:hover { background: #2ea043; }
+  button:disabled { background: #444; cursor: not-allowed; }
+
+  pre.response {
+    background: #010409; border: 1px solid #30363d; border-radius: 4px;
+    padding: 12px; margin-top: 12px; font-size: 12px;
+    max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .timing { color: #8b949e; font-size: 11px; margin-top: 4px; }
+  .warn-box {
+    background: #2d2611; border: 1px solid #6f5f1f; color: #f5e0b6;
+    padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+<h1>TechAssistant API 테스트 <span id="health-badge" class="status warn">확인 중</span></h1>
+<div class="sub">서버: <code>http://localhost:3000</code> · 버튼 누르면 실제 호출됩니다</div>
+
+<!-- 1. health -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="path">/api/health</span>
+    <span class="desc">헬스체크</span>
+  </div>
+  <div class="endpoint-body">
+    <button onclick="callHealth()">호출</button>
+    <pre class="response" id="resp-health">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 2. search -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/search</span>
+    <span class="desc">RAG 검색 (원본 응답)</span>
+  </div>
+  <div class="endpoint-body">
+    <label>query</label>
+    <input id="search-query" value="gridView 셀 병합 방법">
+    <div class="row">
+      <div>
+        <label>topK</label>
+        <input id="search-topk" type="number" value="5">
+      </div>
+      <div>
+        <label>categoryFilter (선택)</label>
+        <input id="search-category" placeholder="비워두면 전체">
+      </div>
+    </div>
+    <button onclick="callSearch()">호출</button>
+    <pre class="response" id="resp-search">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 3. search/enhanced -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/search/enhanced</span>
+    <span class="desc">RAG 검색 (W-Tech 호환 응답, API 없을 때 폴백 모드)</span>
+  </div>
+  <div class="endpoint-body">
+    <label>query</label>
+    <input id="enh-query" value="엑셀 다운로드 시 한글 깨짐">
+    <label>topK</label>
+    <input id="enh-topk" type="number" value="8">
+    <button onclick="callEnhanced()">호출</button>
+    <pre class="response" id="resp-enhanced">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 4. answer -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/answer</span>
+    <span class="desc">RAG + Claude 답변 생성</span>
+  </div>
+  <div class="endpoint-body">
+    <div class="warn-box">⚠ Anthropic API Key 가 config 에 없으면 실패합니다.</div>
+    <label>question</label>
+    <textarea id="ans-q">gridView 에서 특정 셀의 배경색을 동적으로 바꾸려면 어떻게 하나요?</textarea>
+    <div class="row">
+      <div>
+        <label>version</label>
+        <input id="ans-version" value="v5.0">
+      </div>
+      <div>
+        <label>topK</label>
+        <input id="ans-topk" type="number" value="8">
+      </div>
+    </div>
+    <button onclick="callAnswer()">호출</button>
+    <pre class="response" id="resp-answer">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 5. answer/stream -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/answer/stream</span>
+    <span class="desc">SSE 스트리밍 답변 (진행 상태 실시간)</span>
+  </div>
+  <div class="endpoint-body">
+    <div class="warn-box">⚠ Anthropic API Key 필요</div>
+    <label>question</label>
+    <textarea id="stream-q">checkbox 컴포넌트 onclick 이벤트에서 체크 상태 가져오기</textarea>
+    <button onclick="callStream()">호출 (스트리밍)</button>
+    <pre class="response" id="resp-stream">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 6. follow-up -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/answer/follow-up</span>
+    <span class="desc">추가질문 답변 (이전 맥락 유지)</span>
+  </div>
+  <div class="endpoint-body">
+    <div class="warn-box">⚠ Anthropic API Key 필요</div>
+    <label>originalQuestion</label>
+    <input id="fu-orig" value="gridView 셀 병합 방법">
+    <label>previousAnswer</label>
+    <textarea id="fu-prev">setSpan(rowIndex, colIndex, rowSpan, colSpan) API 를 사용하시면 됩니다.</textarea>
+    <label>followUp</label>
+    <input id="fu-q" value="여러 셀을 한번에 병합할 수도 있나요?">
+    <button onclick="callFollowUp()">호출</button>
+    <pre class="response" id="resp-followup">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 7. scan -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="path">/api/scan</span>
+    <span class="desc">신규 문의 스캔 (W-Tech 크롤링 + 답변 생성, SSE)</span>
+  </div>
+  <div class="endpoint-body">
+    <div class="warn-box">⚠ Puppeteer 브라우저를 실제로 띄워서 wTech 에 접속합니다. wTech 자격증명 + Anthropic Key 둘 다 필요. 시간 오래 걸림.</div>
+    <button onclick="callScan()">호출</button>
+    <button onclick="getCursor()" style="background:#444">커서 조회만</button>
+    <pre class="response" id="resp-scan">대기 중...</pre>
+  </div>
+</div>
+
+<!-- 8. queue list -->
+<div class="endpoint">
+  <div class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="path">/api/queue</span>
+    <span class="desc">검수 큐 목록</span>
+  </div>
+  <div class="endpoint-body">
+    <label>status</label>
+    <select id="q-status" style="width:200px;background:#0d1117;color:#e6edf3;border:1px solid #30363d;padding:6px;border-radius:4px;">
+      <option value="">전체</option>
+      <option value="pending">pending</option>
+      <option value="approved">approved</option>
+      <option value="rejected">rejected</option>
+    </select>
+    <button onclick="callQueueList()">호출</button>
+    <pre class="response" id="resp-queue">대기 중...</pre>
+  </div>
+</div>
+
+<script>
+const BASE = "http://localhost:3000";
+
+async function call(path, options = {}) {
+  const start = performance.now();
+  try {
+    const res = await fetch(BASE + path, options);
+    const elapsed = (performance.now() - start).toFixed(0);
+    const ct = res.headers.get("content-type") || "";
+    let body;
+    if (ct.includes("application/json")) {
+      body = await res.json();
+      body = JSON.stringify(body, null, 2);
+    } else {
+      body = await res.text();
+    }
+    return { status: res.status, ok: res.ok, body, elapsed };
+  } catch (err) {
+    const elapsed = (performance.now() - start).toFixed(0);
+    return { status: 0, ok: false, body: "ERROR: " + err.message, elapsed };
+  }
+}
+
+function render(id, result) {
+  const el = document.getElementById(id);
+  const tag = result.ok ? "✅" : "❌";
+  el.textContent = `${tag} ${result.status} · ${result.elapsed}ms\n\n${result.body}`;
+}
+
+async function callHealth() {
+  render("resp-health", await call("/api/health"));
+}
+
+async function callSearch() {
+  const body = {
+    query: document.getElementById("search-query").value,
+    topK: parseInt(document.getElementById("search-topk").value),
+  };
+  const cat = document.getElementById("search-category").value.trim();
+  if (cat) body.categoryFilter = cat;
+
+  document.getElementById("resp-search").textContent = "호출 중... (Python 검색기 실행, 5~30초 소요)";
+  render("resp-search", await call("/api/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+async function callEnhanced() {
+  const body = {
+    query: document.getElementById("enh-query").value,
+    topK: parseInt(document.getElementById("enh-topk").value),
+  };
+  document.getElementById("resp-enhanced").textContent = "호출 중...";
+  render("resp-enhanced", await call("/api/search/enhanced", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+async function callAnswer() {
+  const body = {
+    question: document.getElementById("ans-q").value,
+    version: document.getElementById("ans-version").value,
+    topK: parseInt(document.getElementById("ans-topk").value),
+  };
+  document.getElementById("resp-answer").textContent = "호출 중... (Claude 호출, 10~60초 소요)";
+  render("resp-answer", await call("/api/answer", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+async function callStream() {
+  const el = document.getElementById("resp-stream");
+  el.textContent = "🔌 SSE 연결 중...\n";
+  const body = { question: document.getElementById("stream-q").value };
+  try {
+    const res = await fetch(BASE + "/api/answer/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n\n");
+      buf = lines.pop();
+      for (const l of lines) {
+        el.textContent += l + "\n\n";
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    el.textContent += "\n[연결 종료]";
+  } catch (err) {
+    el.textContent += "\n❌ ERROR: " + err.message;
+  }
+}
+
+async function callFollowUp() {
+  const body = {
+    originalQuestion: document.getElementById("fu-orig").value,
+    previousAnswer: document.getElementById("fu-prev").value,
+    followUp: document.getElementById("fu-q").value,
+  };
+  document.getElementById("resp-followup").textContent = "호출 중...";
+  render("resp-followup", await call("/api/answer/follow-up", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+async function callScan() {
+  const el = document.getElementById("resp-scan");
+  el.textContent = "🔌 W-Tech 크롤링 시작 (시간 오래 걸림)...\n";
+  try {
+    const res = await fetch(BASE + "/api/scan", { method: "POST" });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n\n");
+      buf = lines.pop();
+      for (const l of lines) {
+        el.textContent += l + "\n\n";
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    el.textContent += "\n[연결 종료]";
+  } catch (err) {
+    el.textContent += "\n❌ ERROR: " + err.message;
+  }
+}
+
+async function getCursor() {
+  render("resp-scan", await call("/api/scan/cursor"));
+}
+
+async function callQueueList() {
+  const status = document.getElementById("q-status").value;
+  const path = "/api/queue" + (status ? "?status=" + status : "");
+  render("resp-queue", await call(path));
+}
+
+// 자동 헬스체크
+(async () => {
+  const r = await call("/api/health");
+  const badge = document.getElementById("health-badge");
+  if (r.ok) {
+    badge.textContent = "서버 OK";
+    badge.className = "status ok";
+  } else {
+    badge.textContent = "서버 다운";
+    badge.className = "status fail";
+  }
+})();
+</script>
+</body>
+</html>

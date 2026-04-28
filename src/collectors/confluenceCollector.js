@@ -1,87 +1,89 @@
 /**
  * Confluence 문서 크롤러
- * Puppeteer + SSO 인증 기반
+ * Atlassian Cloud REST API + Basic Auth(API Token) 기반
  *
- * 대상: Inside, UXDB, 기술지식DB, PA, W5C
+ * 대상 5개 스페이스: UXDB, PA, W5C, DB, TechDBinside
  */
 
-const puppeteer = require('puppeteer');
 const { maskPersonalInfo } = require('../utils/masking');
 const { loadConfig } = require('../utils/config');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Confluence 스페이스별 설정
+// Node 16 호환: built-in fetch 없으면 node-fetch 폴리필 사용
+const fetch = globalThis.fetch || require('node-fetch');
+
+// 수집 대상 스페이스 (2026-04 기준 사이트 실제 존재 확인됨)
 const SPACES = {
-  inside: { key: 'INSIDE', label: 'Confluence Inside' },
   uxdb: { key: 'UXDB', label: 'Confluence UXDB' },
-  techdb: { key: 'TECHDB', label: 'Confluence 기술지식DB' },
   pa: { key: 'PA', label: 'Confluence PA' },
   w5c: { key: 'W5C', label: 'Confluence W5C' },
-  techdbinside: { key: 'TechDBinside', label: 'Confluence 기술지식DB(Inside)' },
-  db: { key: 'DB', label: 'Confluence DB' },
+  db: { key: 'DB', label: 'Confluence 기술지식DB' },
+  techdbinside: { key: 'TechDBinside', label: 'Confluence 기술지식DB(내부용)' },
 };
+
+const PAGE_LIMIT = 100;
+const REQUEST_DELAY_MS = 50;
 
 class ConfluenceCollector {
   constructor(config) {
     this.config = config || loadConfig().confluence;
-    this.browser = null;
     this.collectedData = [];
+
+    const { email, apiToken } = this.config.auth || {};
+    if (!email || !apiToken) {
+      throw new Error(
+        'Confluence 설정 누락: config.confluence.auth.email / apiToken 필요. ' +
+        'API 토큰 발급: https://id.atlassian.com/manage-profile/security/api-tokens'
+      );
+    }
+    this.authHeader = 'Basic ' + Buffer.from(`${email}:${apiToken}`).toString('base64');
+    this.baseUrl = this.config.baseUrl.replace(/\/$/, '');
   }
 
-  async init() {
-    this.browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  async _request(path) {
+    const url = path.startsWith('http') ? path : this.baseUrl + path;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: this.authHeader,
+        Accept: 'application/json',
+      },
     });
-    console.log('[Confluence] 브라우저 초기화 완료');
+    if (!res.ok) {
+      const body = await res.text();
+      const err = new Error(`HTTP ${res.status} ${url}: ${body.substring(0, 200)}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  async _sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
   /**
-   * SSO 로그인
+   * 특정 스페이스의 페이지 ID/제목 목록 조회 (페이지네이션)
    */
-  async login(page) {
-    await page.goto(this.config.loginUrl, { waitUntil: 'networkidle2' });
-    await page.type('#username', this.config.credentials.username);
-    await page.type('#password', this.config.credentials.password);
-    await page.click('#loginButton');
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    console.log('[Confluence] SSO 로그인 성공');
-  }
-
-  /**
-   * 특정 스페이스의 페이지 목록 조회
-   */
-  async getPageList(page, spaceKey) {
-    const apiUrl = `${this.config.baseUrl}/rest/api/content?spaceKey=${spaceKey}&limit=100&expand=metadata.labels`;
+  async getPageList(spaceKey) {
     const pages = [];
     let start = 0;
-    let hasMore = true;
 
-    while (hasMore) {
-      await page.goto(`${apiUrl}&start=${start}`, { waitUntil: 'networkidle2' });
+    while (true) {
+      const data = await this._request(
+        `/rest/api/content?spaceKey=${encodeURIComponent(spaceKey)}&limit=${PAGE_LIMIT}&start=${start}&expand=metadata.labels`
+      );
+      const results = data.results || [];
+      if (results.length === 0) break;
 
-      const data = await page.evaluate(() => {
-        try {
-          return JSON.parse(document.body.innerText);
-        } catch {
-          return null;
-        }
-      });
-
-      if (!data?.results?.length) {
-        hasMore = false;
-        break;
-      }
-
-      pages.push(...data.results.map((p) => ({
+      pages.push(...results.map((p) => ({
         id: p.id,
         title: p.title,
-        url: `${this.config.baseUrl}${p._links?.webui || ''}`,
+        url: `${this.baseUrl}${p._links?.webui || ''}`,
       })));
 
-      start += data.results.length;
-      hasMore = data.size >= data.limit;
+      if (results.length < PAGE_LIMIT) break;
+      start += results.length;
     }
 
     return pages;
@@ -90,22 +92,15 @@ class ConfluenceCollector {
   /**
    * 개별 페이지 본문 수집
    */
-  async collectPageContent(page, pageInfo, spaceLabel) {
+  async collectPageContent(pageInfo, spaceLabel) {
     try {
-      const apiUrl = `${this.config.baseUrl}/rest/api/content/${pageInfo.id}?expand=body.storage`;
-      await page.goto(apiUrl, { waitUntil: 'networkidle2' });
+      const data = await this._request(
+        `/rest/api/content/${pageInfo.id}?expand=body.storage,version`
+      );
+      const html = data?.body?.storage?.value;
+      if (!html) return null;
 
-      const data = await page.evaluate(() => {
-        try {
-          return JSON.parse(document.body.innerText);
-        } catch {
-          return null;
-        }
-      });
-
-      if (!data?.body?.storage?.value) return null;
-
-      const text = this._htmlToText(data.body.storage.value);
+      const text = this._htmlToText(html);
       if (!text || text.length < 50) return null;
 
       return {
@@ -115,7 +110,7 @@ class ConfluenceCollector {
         question: maskPersonalInfo(pageInfo.title),
         answer: maskPersonalInfo(text),
         source: spaceLabel,
-        date: '',
+        date: data?.version?.when || '',
         tags: [],
       };
     } catch (err) {
@@ -133,59 +128,73 @@ class ConfluenceCollector {
       .replace(/<\/p>/gi, '\n')
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
 
   /**
    * 전체 수집 실행
+   * @param {Object|string[]} [options] - { spaceKeys?: string[], maxPagesPerSpace?: number } 또는 레거시 배열 형태
    */
-  async collect(spaceKeys) {
-    const targetSpaces = spaceKeys || Object.keys(SPACES);
+  async collect(options = {}) {
+    let targetKeys;
+    let maxPagesPerSpace = Infinity;
 
-    try {
-      await this.init();
-      const page = await this.browser.newPage();
-      await this.login(page);
+    if (Array.isArray(options)) {
+      targetKeys = options;
+    } else {
+      targetKeys = options.spaceKeys || Object.keys(SPACES);
+      if (options.maxPagesPerSpace) maxPagesPerSpace = options.maxPagesPerSpace;
+    }
 
-      for (const key of targetSpaces) {
-        const space = SPACES[key];
-        if (!space) {
-          console.warn(`[Confluence] 알 수 없는 스페이스: ${key}`);
-          continue;
-        }
-
-        console.log(`[Confluence] ${space.label} 수집 시작...`);
-        const pageList = await this.getPageList(page, space.key);
-
-        for (const pageInfo of pageList) {
-          const content = await this.collectPageContent(page, pageInfo, space.label);
-          if (content) {
-            this.collectedData.push(content);
-          }
-        }
-
-        console.log(`[Confluence] ${space.label} 완료: ${pageList.length}건 중 ${this.collectedData.length}건 수집`);
+    for (const key of targetKeys) {
+      const space = SPACES[key];
+      if (!space) {
+        console.warn(`[Confluence] 알 수 없는 스페이스: ${key}`);
+        continue;
       }
 
-      console.log(`[Confluence] 전체 수집 완료: 총 ${this.collectedData.length}건`);
-      return this.collectedData;
-    } finally {
-      await this.close();
+      console.log(`[Confluence] ${space.label} (${space.key}) 수집 시작...`);
+      let pageList;
+      try {
+        pageList = await this.getPageList(space.key);
+      } catch (err) {
+        console.error(`[Confluence] ${space.key} 페이지 목록 조회 실패:`, err.message);
+        continue;
+      }
+
+      const target = pageList.slice(0, maxPagesPerSpace);
+      console.log(`[Confluence] ${space.label}: ${target.length}/${pageList.length} 페이지 본문 수집 중...`);
+
+      let collected = 0;
+      for (let i = 0; i < target.length; i++) {
+        const content = await this.collectPageContent(target[i], space.label);
+        if (content) {
+          this.collectedData.push(content);
+          collected++;
+        }
+        if (REQUEST_DELAY_MS) await this._sleep(REQUEST_DELAY_MS);
+
+        if ((i + 1) % 50 === 0) {
+          console.log(`[Confluence] ${space.label}: ${i + 1}/${target.length} 진행...`);
+        }
+      }
+
+      console.log(`[Confluence] ${space.label} 완료: ${target.length}건 중 ${collected}건 수집`);
     }
+
+    console.log(`[Confluence] 전체 수집 완료: 총 ${this.collectedData.length}건`);
+    return this.collectedData;
   }
 
   async save(outputDir) {
     const outputPath = path.join(outputDir, 'confluence_qa.json');
     await fs.writeFile(outputPath, JSON.stringify(this.collectedData, null, 2), 'utf8');
     console.log(`[Confluence] 저장 완료: ${outputPath}`);
-  }
-
-  async close() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
   }
 }
 

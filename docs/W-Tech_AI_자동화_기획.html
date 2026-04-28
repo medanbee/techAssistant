@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W-Tech 게시판 기술문의 AI 자동화</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #f8f9fa;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 3rem;
+  }
+  h1.title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  .subtitle {
+    color: #666;
+    font-size: 1rem;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-top: 2.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #374151;
+  }
+  .callout {
+    background: #f0f4ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 0 8px 8px 0;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0 1.25rem;
+    color: #1e40af;
+    font-size: 0.95rem;
+  }
+  .callout.warn {
+    background: #fef9e7;
+    border-left-color: #d97706;
+    color: #92400e;
+  }
+  ul { padding-left: 1.5rem; margin: 0.5rem 0; }
+  li { margin: 0.35rem 0; }
+  li > ul { margin: 0.2rem 0; }
+  strong { font-weight: 600; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+  }
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+  }
+  th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .badge.done { background: #d1fae5; color: #065f46; }
+  .badge.todo { background: #fee2e2; color: #991b1b; }
+  .flow-box {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.88rem;
+    line-height: 1.8;
+    margin: 1rem 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li {
+    padding: 0.4rem 0;
+    padding-left: 1.6rem;
+    position: relative;
+  }
+  .checklist li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #d1d5db;
+    border-radius: 4px;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 2rem 0;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .stat-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .stat-card .num { font-size: 1.5rem; font-weight: 700; color: #2563eb; }
+  .stat-card .label { font-size: 0.82rem; color: #6b7280; margin-top: 0.2rem; }
+  .updated {
+    text-align: right;
+    font-size: 0.82rem;
+    color: #9ca3af;
+    margin-top: 2rem;
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .container { box-shadow: none; padding: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1 class="title">W-Tech 게시판 기술문의 AI 자동화</h1>
+<p class="subtitle">W-Tech QNA 게시판에 AI 자동 답변 기능을 도입하여 기술지원 업무를 자동화하는 프로젝트</p>
+
+<!-- 1. 프론트엔드 -->
+<h2><span class="num">1</span> 프론트엔드 (W-Tech 게시판 UI)</h2>
+<div class="callout">W-Tech 게시판 UI에 AI 답변 및 사용자 인터랙션 기능 추가</div>
+
+<h3>기능 추가 리스트</h3>
+<ul>
+  <li><strong>Q&A 게시글 등록 페이지 개선</strong>
+    <ul>
+      <li>제목, 웹스퀘어 버전, 회사명/프로젝트 입력 필드 추가</li>
+      <li>유지보수 계약 여부 확인 안내 문구 추가 (계약되어 있어야 답변 진행 가능)</li>
+    </ul>
+  </li>
+  <li><strong>회사명/프로젝트 검색 기능</strong>
+    <ul>
+      <li>기술지원 시스템 DB에서 유지보수 계약 확인 (지원 날짜 기준)</li>
+      <li>[기타] 카테고리 선택 시 AI 자동 답변 대상에서 제외</li>
+    </ul>
+  </li>
+  <li><strong>게시글 형식 수정</strong></li>
+  <li><strong>AI 답변 영역 UI 추가</strong>
+    <ul>
+      <li>답변 내용 표시 (답변 신뢰도 함께 표시)</li>
+      <li>"엔지니어 답변 추가 요청" 버튼</li>
+      <li>문의자 답글에 대한 AI 재답변 처리 (방식 검토 필요)</li>
+      <li>새로 등록되는 글부터 적용 (기존 글 처리 방안 검토 필요)</li>
+    </ul>
+  </li>
+  <li><strong>라이선스 발급</strong>
+    <ul>
+      <li>라이선스 발급 UI 추가 &rarr; 데모 라이선스 자동 발급 기능</li>
+    </ul>
+  </li>
+</ul>
+
+<hr>
+
+<!-- 2. 서버/백엔드 -->
+<h2><span class="num">2</span> 서버/백엔드 (API 서버)</h2>
+<div class="callout">AI 답변 생성 및 W-Tech와의 연동을 처리하는 API 서버 구성</div>
+
+<h3>처리 흐름</h3>
+<div class="flow-box">W-Tech 게시글 등록
+  &rarr; API 서버 (TechAssistant)
+  &rarr; RAG 벡터 검색 (ChromaDB + multilingual-e5-base)
+  &rarr; Claude API 호출 (답변 생성)
+  &rarr; API 검증 (답변 내 API/이벤트/속성명 존재 확인)
+  &rarr; 검수 큐 적재
+  &rarr; 담당자 승인
+  &rarr; W-Tech에 답변 등록</div>
+
+<h3>API 구현 현황</h3>
+<table>
+  <thead>
+    <tr><th>엔드포인트</th><th>기능</th><th>상태</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>POST /api/scan</code></td><td>W-Tech 신규 미답변 문의 감지 + 자동 답변 생성 (SSE)</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td><code>GET /api/queue</code></td><td>검수 큐 조회 (pending / approved / rejected)</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td><code>PATCH /api/queue/:id</code></td><td>답변 수정 및 상태 변경 (승인/반려)</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td><code>POST /api/answer</code></td><td>단건 답변 생성 (인증 필요)</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td><code>POST /api/search</code></td><td>RAG 유사 사례 검색</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td><code>GET /api/health</code></td><td>헬스 체크</td><td><span class="badge done">완료</span></td></tr>
+    <tr><td>W-Tech 답변 등록 API</td><td>승인된 답변을 W-Tech 게시판에 등록</td><td><span class="badge todo">미구현</span></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<!-- 3. AI 답변 생성 -->
+<h2><span class="num">3</span> AI 답변 생성</h2>
+<div class="callout">기술문의 데이터를 기반으로 AI가 답변을 생성하고, 유사 질문 및 참조 사례를 함께 제공</div>
+
+<h3>데이터 현황</h3>
+<div class="stats">
+  <div class="stat-card"><div class="num">27,688</div><div class="label">통합 Q&A 데이터</div></div>
+  <div class="stat-card"><div class="num">9</div><div class="label">수집 소스</div></div>
+  <div class="stat-card"><div class="num">13</div><div class="label">자동 분류 카테고리</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>소스</th><th>건수</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>W-Tech QNA</td><td>8,159건</td></tr>
+    <tr><td>API 가이드 (AI / SP4 / SP5)</td><td>11,136건</td></tr>
+    <tr><td>Gmail 기술문의</td><td>4,195건</td></tr>
+    <tr><td>개발가이드 샘플</td><td>1,157건</td></tr>
+    <tr><td>Confluence (기술지식DB, UXDB, PA, W5C 등)</td><td>1,263건</td></tr>
+    <tr><td>릴리즈 노트 / 기타 가이드</td><td>1,778건</td></tr>
+    <tr><td><strong>합계</strong></td><td><strong>27,688건</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>답변 생성 파이프라인</h3>
+<table>
+  <thead>
+    <tr><th>단계</th><th>설명</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1. 문의 분류</td><td>13개 대분류로 자동 분류 (정규식 기반 룰 엔진)</td></tr>
+    <tr><td>2. RAG 검색</td><td>ChromaDB + multilingual-e5-base로 유사 사례 상위 8건 검색</td></tr>
+    <tr><td>3. 답변 생성</td><td>Claude API로 답변 초안 생성 (RAG 결과 기반)</td></tr>
+    <tr><td>4. API 검증</td><td>답변 내 API/이벤트/속성명을 RAG DB에서 존재 확인</td></tr>
+    <tr><td>5. 자동 재생성</td><td>미확인 API 발견 시 해당 API 제외 후 재생성 (최대 3회)</td></tr>
+    <tr><td>6. 검수 큐</td><td>담당자가 검수 후 승인/반려</td></tr>
+  </tbody>
+</table>
+
+<h3>개인정보 처리</h3>
+<p>크롤링 시점에 <code>masking.js</code>로 즉시 마스킹 처리 (raw 데이터부터 마스킹된 상태로 저장)</p>
+<table>
+  <thead>
+    <tr><th>대상</th><th>치환 결과</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>이메일 주소</td><td><code>[이메일]</code></td></tr>
+    <tr><td>전화번호 (한국 형식)</td><td><code>[전화번호]</code></td></tr>
+    <tr><td>IP 주소 (포트 포함)</td><td><code>[서버주소]</code></td></tr>
+    <tr><td>외부 URL (websquare/inswave/w-tech 제외)</td><td><code>[URL]</code></td></tr>
+  </tbody>
+</table>
+<div class="callout warn">이름, 회사명, 프로젝트명은 현재 정규식으로 자동 마스킹되지 않음. 보강 필요.</div>
+
+<h3>첨부파일</h3>
+<ul>
+  <li>Gmail 크롤링 시 첨부파일 자동 수집 (<code>data/raw/gmail_attachments/</code>, 286건)</li>
+  <li>현재 RAG 인덱싱에는 포함되지 않음 (파일 시스템 저장만)</li>
+  <li>향후 이미지 OCR, PDF 텍스트 추출 등으로 인덱싱 포함 검토</li>
+</ul>
+
+<hr>
+
+<!-- 4. 향후 계획 -->
+<h2><span class="num">4</span> 향후 계획</h2>
+<ul class="checklist">
+  <li>W-Tech 사이트 직접 개발 (AI 답변 등록 API 포함)</li>
+  <li>개인정보 마스킹 보강 (이름 / 회사명 / 프로젝트명)</li>
+  <li>첨부파일 RAG 인덱싱 연동</li>
+  <li>답변 신뢰도 표시 기능</li>
+  <li>문의자 답글 &rarr; AI 재답변 처리 방식 확정</li>
+  <li>데모 라이선스 자동 발급 연동</li>
+</ul>
+
+<p class="updated">최종 업데이트: 2026-04-13</p>
+
+</div>
+</body>
+</html>

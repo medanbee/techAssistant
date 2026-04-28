@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:ev="http://www.w3.org/2001/xml-events"
+    xmlns:w2="http://www.inswave.com/websquare" xmlns:xf="http://www.w3.org/2002/xforms">
+    <head>
+    <!--
+      chart_casecade.html 과 1:1 동일한 결과를 위한 라이브러리 import.
+      (원 샘플 HTML 의 import 누락분: powercharts.js 추가)
+    -->
+    <script type="text/javascript" src="https://cdn.fusioncharts.com/fusioncharts/latest/fusioncharts.js"></script>
+    <script type="text/javascript" src="https://cdn.fusioncharts.com/fusioncharts/latest/fusioncharts.powercharts.js"></script>
+    <script type="text/javascript" src="https://cdn.fusioncharts.com/fusioncharts/latest/themes/fusioncharts.theme.fusion.js"></script>
+
+        <w2:type>COMPONENT</w2:type>
+        <w2:buildDate/>
+        <w2:MSA/>
+        <xf:model>
+            <w2:dataCollection baseNode="map"/>
+            <w2:workflowCollection/>
+        </xf:model>
+        <w2:layoutInfo/>
+        <w2:publicInfo method=""/>
+        <script lazy="false" type="text/javascript"><![CDATA[
+scwin.onpageload = function() {
+    // chart_casecade.html 과 동일한 native FusionCharts 호출
+    FusionCharts.ready(function(){
+        var chartObj = new FusionCharts({
+            type: "waterfall2d",
+            renderAt: "chart-container",
+            width: "680",
+            height: "390",
+            dataFormat: "json",
+            dataSource: {
+                "chart": {
+                    "theme": "fusion",
+                    "caption": "Total Profit Calculation",
+                    "subcaption": "Last month",
+                    "yAxisname": "Amount (In USD)",
+                    "numberprefix": "$",
+                    "connectordashed": "1",
+                    "sumlabel": "Total {br} Profit"
+                },
+                "data": [
+                    { "label": "Online sales",    "value": "420000" },
+                    { "label": "Store Sales",     "value": "710000" },
+                    { "label": "Total Sales",     "issum": "1" },
+                    { "label": "Fixed Costs",     "value": "-250000" },
+                    { "label": "Variable Costs",  "value": "-156000" },
+                    { "label": "COGS",            "value": "-310000" },
+                    { "label": "Promotion Costs", "value": "-86000" },
+                    { "label": "Total Costs",     "issum": "1", "cumulative": "0" }
+                ]
+            }
+        });
+        chartObj.render();
+    });
+};
+]]></script>
+    </head>
+    <body ev:onpageload="scwin.onpageload">
+        <xf:group id="grp1" style="margin: 10px;">
+            <!--
+              FusionCharts native 가 그려질 컨테이너 div.
+              renderAt 의 ID 와 동일해야 함 (chart-container).
+            -->
+            <w2:textbox tagname="div" id="chart-container"
+                style="width:680px;height:390px;"
+                label="FusionCharts XT will load here!" escape="false">
+            </w2:textbox>
+        </xf:group>
+    </body>
+</html>

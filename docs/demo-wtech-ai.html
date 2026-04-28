@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W-Tech Q&A - AI 자동 답변 데모</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Malgun Gothic', 'Segoe UI', sans-serif; background: #fff; color: #333; font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: #333; text-decoration: none; transition: color 0.15s; }
+
+  /* 데모 배너 */
+  .demo-banner { background: linear-gradient(135deg, #6d28d9, #2563eb, #0ea5e9); color: #fff; text-align: center; padding: 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+
+  /* 헤더 */
+  .header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 68px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 100; }
+  .header .logo { font-size: 1.5rem; font-weight: 700; color: #1a1a6c; display: flex; align-items: center; gap: 2px; letter-spacing: -0.5px; }
+  .header .logo .w { color: #4a6cf7; font-size: 1.75rem; font-style: italic; }
+  .header nav { display: flex; gap: 48px; }
+  .header nav a { font-size: 16px; color: #555; font-weight: 500; padding: 22px 0; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .header nav a:hover { color: #1a1a6c; }
+  .header nav a.active { color: #1a1a6c; font-weight: 700; border-bottom-color: #2563eb; }
+  .header .header-right { display: flex; align-items: center; gap: 22px; font-size: 14px; color: #888; }
+  .header .header-right span { cursor: pointer; transition: color 0.15s; }
+  .header .header-right span:hover { color: #333; }
+
+  /* Q&A 배너 */
+  .qa-banner { text-align: center; padding: 52px 20px 44px; background: linear-gradient(180deg, #f3eff8 0%, #eee8f3 20%, #f8f6fa 60%, #fff 100%); position: relative; overflow: hidden; }
+  .qa-banner h1 { font-size: 2.8rem; font-weight: 800; color: #1a1a1a; margin-bottom: 12px; letter-spacing: -1px; }
+  .qa-banner p { color: #777; font-size: 15px; line-height: 1.8; }
+  .qa-banner .rocket { position: absolute; right: 16%; top: 12px; font-size: 110px; opacity: 0.18; transform: rotate(-15deg); filter: saturate(0.7); }
+
+  /* 컨테이너 */
+  .container { max-width: 1140px; margin: 0 auto; padding: 0 24px 48px; min-height: 60vh; }
+
+  /* 검색바 */
+  .search-bar { display: flex; align-items: center; justify-content: center; gap: 0; margin: 28px 0 32px; }
+  .search-bar select { border: 1px solid #d1d5db; border-radius: 26px 0 0 26px; padding: 12px 22px; font-size: 14px; background: #fff; border-right: none; outline: none; transition: border-color 0.15s; }
+  .search-bar select:focus { border-color: #a5b4fc; }
+  .search-bar .search-input { border: 1px solid #d1d5db; border-radius: 0 26px 26px 0; padding: 12px 44px 12px 18px; font-size: 14px; width: 480px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+  .search-bar .search-input:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); }
+  .search-bar .search-btn { background: none; border: none; cursor: pointer; font-size: 20px; margin-left: -40px; color: #9ca3af; transition: color 0.15s; }
+  .search-bar .search-btn:hover { color: #4338ca; }
+
+  /* 총 건수 */
+  .total-count { margin-bottom: 12px; font-size: 14px; color: #777; }
+  .total-count strong { color: #2563eb; font-weight: 700; }
+
+  /* 게시판 테이블 */
+  .board-table { width: 100%; border-collapse: collapse; border-top: 2px solid #1a1a1a; }
+  .board-table th { padding: 14px 10px; font-size: 14px; font-weight: 600; color: #555; border-bottom: 1px solid #d1d5db; background: #fafbfc; }
+  .board-table td { padding: 14px 10px; font-size: 14px; border-bottom: 1px solid #eef0f2; transition: background 0.1s; }
+  .board-table tr:hover td { background: #f6f8ff; }
+  .board-table .center { text-align: center; }
+  .board-table .title-cell { cursor: pointer; transition: color 0.15s; }
+  .board-table .title-cell:hover { color: #2563eb; }
+
+  .status { display: inline-block; padding: 4px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .status.notice { background: #fde8e8; color: #e02424; }
+  .status.reviewing { background: #fef3c7; color: #b45309; }
+  .status.resolved { background: #d1fae5; color: #059669; }
+  .status.ai-answered { background: #ede9fe; color: #7c3aed; }
+
+  .product-icon { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #444; }
+  .product-icon .icon { background: linear-gradient(135deg, #4a6cf7, #3b5ef5); color: #fff; font-size: 10px; font-weight: 800; padding: 3px 6px; border-radius: 3px; letter-spacing: -0.5px; }
+
+  .comment-count { display: inline-block; background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+  .ai-badge { display: inline-block; background: linear-gradient(135deg, #ede9fe, #e0e7ff); color: #6d28d9; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+  /* 페이징 */
+  .pagination { display: flex; justify-content: center; align-items: center; gap: 5px; margin: 32px 0 18px; }
+  .pagination button { width: 36px; height: 36px; border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; cursor: pointer; font-size: 14px; color: #555; transition: all 0.15s; }
+  .pagination button:hover { background: #f3f4f6; border-color: #d1d5db; }
+  .pagination button.active { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 700; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+  .pagination button.arrow { font-size: 13px; color: #999; }
+  .write-btn-wrap { text-align: right; margin-top: 14px; }
+  .btn { padding: 11px 26px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s; }
+  .btn-blue { background: #2563eb; color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,0.2); }
+  .btn-blue:hover { background: #1d4ed8; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transform: translateY(-1px); }
+  .btn-white { background: #fff; color: #333; border: 1px solid #d1d5db; }
+  .btn-white:hover { background: #f9fafb; border-color: #9ca3af; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-sm { padding: 8px 18px; font-size: 13px; }
+
+  /* ===== 상세 페이지 ===== */
+  .detail-wrap { display: none; }
+  .detail-top { border-top: 2px solid #1a1a1a; padding: 28px 0; border-bottom: 1px solid #e5e7eb; }
+  .detail-status-line { margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .detail-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; color: #111; }
+  .detail-meta { font-size: 13px; color: #9ca3af; }
+
+  .detail-body { padding: 32px 0; border-bottom: 1px solid #e5e7eb; line-height: 1.9; font-size: 15px; }
+  .detail-body .section-label { color: #b45309; font-weight: 600; margin-top: 22px; }
+  .detail-body .guide-text { color: #9ca3af; font-size: 14px; }
+  .detail-body pre { background: #f8f9fb; padding: 16px; border-radius: 8px; font-size: 14px; margin: 8px 0; overflow-x: auto; font-family: 'Consolas', 'Menlo', monospace; border: 1px solid #e5e7eb; }
+
+  .detail-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 18px 0; border-bottom: 1px solid #e5e7eb; align-items: center; }
+  .detail-actions select { border: 1px solid #d1d5db; padding: 8px 14px; font-size: 13px; border-radius: 6px; }
+
+  /* AI 답변 영역 */
+  .ai-section { margin: 28px 0; border: 1px solid #c7d2fe; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(99,102,241,0.08); }
+  .ai-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: linear-gradient(135deg, #f5f3ff, #eef2ff, #f0f4ff); border-bottom: 1px solid #c7d2fe; }
+  .ai-header .ai-title { display: flex; align-items: center; gap: 9px; font-weight: 700; color: #4338ca; font-size: 15px; }
+  .ai-header .ai-title svg { width: 20px; height: 20px; }
+  .confidence { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #555; }
+  .confidence-bar { width: 80px; height: 6px; background: #e0e7ff; border-radius: 3px; overflow: hidden; }
+  .confidence-fill { height: 100%; border-radius: 3px; }
+  .confidence-score { font-weight: 700; }
+  .confidence-score.high { color: #16a34a; }
+  .confidence-score.mid { color: #d97706; }
+
+  .ai-body { padding: 24px; background: #fcfcff; line-height: 1.9; font-size: 15px; }
+  .ai-body h4 { font-size: 15px; color: #4338ca; margin: 18px 0 8px; font-weight: 700; }
+  .ai-body h4:first-child { margin-top: 0; }
+  .ai-body code { background: #eef2ff; padding: 2px 7px; border-radius: 4px; font-size: 13.5px; color: #3730a3; font-family: 'Consolas', 'Menlo', monospace; }
+  .ai-body pre { background: #1e1b4b; color: #c7d2fe; padding: 18px; border-radius: 8px; font-size: 13.5px; margin: 10px 0; overflow-x: auto; font-family: 'Consolas', 'Menlo', monospace; line-height: 1.6; }
+  .ai-body ul { padding-left: 1.3rem; margin: 6px 0; }
+  .ai-body li { margin: 4px 0; }
+
+  .ai-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; border-top: 1px solid #ddd6fe; background: linear-gradient(135deg, #f5f3ff, #faf5ff); font-size: 13px; flex-wrap: wrap; gap: 10px; }
+  .ai-sources { color: #7c3aed; font-weight: 500; }
+  .ai-actions-row { display: flex; gap: 8px; }
+  .btn-ai { padding: 7px 16px; border: 1px solid #c7d2fe; background: #fff; color: #4338ca; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .btn-ai:hover { background: #eef2ff; border-color: #a5b4fc; transform: translateY(-1px); }
+  .btn-ai.primary { background: linear-gradient(135deg, #4338ca, #4f46e5); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(67,56,202,0.25); }
+  .btn-ai.primary:hover { background: linear-gradient(135deg, #3730a3, #4338ca); box-shadow: 0 3px 12px rgba(67,56,202,0.35); }
+
+  /* 엔지니어 답변 */
+  .engineer-section { margin: 18px 0; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .engineer-header { display: flex; align-items: center; gap: 10px; padding: 14px 24px; background: #f8f9fb; border-bottom: 1px solid #e5e7eb; font-weight: 700; color: #1e3a5f; font-size: 14px; }
+  .engineer-badge { background: #dbeafe; color: #1e40af; font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 700; }
+  .engineer-body { padding: 20px 24px; line-height: 1.85; font-size: 15px; }
+
+  /* 댓글 */
+  .comment-section { margin-top: 32px; }
+  .comment-section h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: #333; }
+  .comment-write { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 18px; }
+  .comment-write textarea { flex: 1; border: 1px solid #d1d5db; border-radius: 8px; padding: 14px; font-size: 14px; min-height: 68px; resize: vertical; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s; }
+  .comment-write textarea:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); outline: none; }
+  .comment-write .upload-btn { font-size: 20px; color: #c4c7cc; cursor: pointer; padding: 10px; transition: color 0.15s; }
+  .comment-write .upload-btn:hover { color: #6366f1; }
+  .comment-write .submit-btn { align-self: flex-end; }
+  .comment-note { font-size: 12px; color: #b0b5be; margin-top: 6px; line-height: 1.6; }
+
+  .comment-item { padding: 16px 0; border-bottom: 1px solid #f3f4f6; }
+  .comment-item .comment-author { font-weight: 700; font-size: 14px; margin-right: 10px; color: #1a1a1a; }
+  .comment-item .comment-text { font-size: 14px; margin-top: 6px; line-height: 1.7; color: #444; }
+
+  .ai-rewrite-note { background: linear-gradient(135deg, #fef9e7, #fefce8); border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e; margin-top: 10px; }
+
+  /* 글쓰기 */
+  .write-wrap { display: none; }
+  .write-top { display: flex; gap: 14px; align-items: center; margin-bottom: 0; padding: 18px 0; border-bottom: 1px solid #eee; }
+  .write-top .checkbox-label { font-size: 14px; display: flex; align-items: center; gap: 5px; }
+  .write-top select { border: 1px solid #d1d5db; padding: 9px 14px; font-size: 14px; border-radius: 6px; transition: border-color 0.15s; }
+  .write-top select:focus { border-color: #a5b4fc; outline: none; }
+  .write-top input { flex: 1; border: 1px solid #d1d5db; padding: 9px 14px; font-size: 14px; border-radius: 6px; transition: border-color 0.2s, box-shadow 0.2s; }
+  .write-top input:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); outline: none; }
+  .write-editor { border: 1px solid #d1d5db; margin: 18px 0; min-height: 380px; border-radius: 8px; overflow: hidden; }
+  .write-toolbar { background: #fafbfc; border-bottom: 1px solid #e5e7eb; padding: 8px 10px; display: flex; gap: 3px; flex-wrap: wrap; }
+  .write-toolbar button { background: #fff; border: 1px solid #e5e7eb; width: 32px; height: 32px; font-size: 13px; cursor: pointer; border-radius: 4px; color: #555; transition: all 0.1s; }
+  .write-toolbar button:hover { background: #f3f4f6; border-color: #d1d5db; }
+  .write-toolbar select { border: 1px solid #e5e7eb; font-size: 13px; padding: 3px 8px; height: 32px; border-radius: 4px; }
+  .write-content { padding: 20px; min-height: 300px; font-size: 14px; line-height: 1.8; color: #666; }
+  .write-content .tmpl { color: #b45309; font-weight: 600; }
+  .write-content .guide { color: #aaa; }
+
+  /* 추가 입력 필드 (AI용 신규) */
+  .write-extra { padding: 20px 0; border-bottom: 1px solid #eee; }
+  .write-extra .row { display: flex; gap: 18px; margin-bottom: 16px; }
+  .write-extra label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 5px; }
+  .write-extra label .req { color: #dc2626; }
+  .write-extra input, .write-extra select { width: 100%; border: 1px solid #d1d5db; padding: 9px 12px; font-size: 14px; border-radius: 6px; transition: border-color 0.2s; }
+  .write-extra input:focus, .write-extra select:focus { border-color: #a5b4fc; outline: none; }
+  .write-extra .field { flex: 1; }
+  .write-extra .contract-ok { color: #059669; font-size: 12px; margin-top: 4px; }
+  .write-extra .category-warn { color: #dc2626; font-size: 12px; margin-top: 4px; display: none; }
+
+  .attach-section { padding: 20px 24px; background: #fafbfc; margin: 0 -24px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
+  .attach-section h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .attach-note { font-size: 12px; color: #999; margin-bottom: 10px; }
+  .attach-btns { display: flex; gap: 10px; }
+
+  .write-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 20px 0; }
+
+  /* 라이선스 탭 */
+  .license-wrap { display: none; }
+  .license-form { max-width: 700px; margin: 0 auto; padding: 24px 0; }
+  .license-form h2 { font-size: 1.25rem; margin-bottom: 6px; }
+  .license-form .desc { font-size: 14px; color: #777; margin-bottom: 22px; }
+  .license-form .form-row { display: flex; gap: 18px; margin-bottom: 16px; }
+  .license-form .form-group { flex: 1; }
+  .license-form label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 5px; }
+  .license-form label .req { color: #dc2626; }
+  .license-form input, .license-form select, .license-form textarea { width: 100%; border: 1px solid #d1d5db; padding: 9px 12px; font-size: 14px; border-radius: 6px; font-family: inherit; transition: border-color 0.2s; }
+  .license-form input:focus, .license-form select:focus, .license-form textarea:focus { border-color: #a5b4fc; outline: none; }
+  .license-form textarea { min-height: 80px; resize: vertical; }
+  .license-form .form-actions { text-align: center; margin-top: 24px; }
+
+  .license-result { display: none; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #a7f3d0; border-radius: 10px; padding: 20px; margin-top: 24px; }
+  .license-result.show { display: block; }
+  .license-result h4 { color: #166534; margin-bottom: 12px; font-size: 15px; }
+  .license-result table { font-size: 14px; margin-bottom: 12px; }
+  .license-result td { padding: 4px 10px; }
+  .license-result td:first-child { font-weight: 600; color: #555; }
+
+  /* 탭 네비 */
+  .sub-tabs { display: flex; gap: 0; border-bottom: 2px solid #eee; margin-bottom: 24px; }
+  .sub-tabs button { background: none; border: none; padding: 13px 28px; font-size: 15px; cursor: pointer; color: #999; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+  .sub-tabs button:hover { color: #555; }
+  .sub-tabs button.active { color: #1a1a6c; font-weight: 700; border-bottom-color: #2563eb; }
+
+  .back-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; font-size: 14px; color: #999; cursor: pointer; margin-bottom: 14px; padding: 0; transition: color 0.15s; }
+  .back-btn:hover { color: #333; }
+
+  /* ===== Prototype 상세 카드 스타일 ===== */
+  .q-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .q-card-header { padding: 22px 28px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: flex-start; gap: 16px; }
+  .q-card-status { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+  .q-card-status.reviewing { background: #eff6ff; color: #2563eb; }
+  .q-card-status.resolved { background: #dcfce7; color: #059669; }
+  .q-card-status.ai-answered { background: #ede9fe; color: #7c3aed; }
+  .q-card-title-area { flex: 1; }
+  .q-card-title { font-size: 19px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
+  .q-card-meta { font-size: 13px; color: #94a3b8; }
+  .q-card-meta span { margin-right: 18px; }
+  .q-card-product { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: #f8fafc; border-radius: 6px; font-size: 13px; font-weight: 500; border: 1px solid #e2e8f0; }
+  .q-card-body { padding: 28px; }
+  .q-card-section { margin-bottom: 22px; }
+  .q-card-section:last-child { margin-bottom: 0; }
+  .q-card-label { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .q-card-content { font-size: 15px; color: #1e293b; line-height: 1.85; }
+  .q-card-content code { background: #f8fafc; padding: 2px 7px; border-radius: 4px; font-family: Consolas, Menlo, monospace; font-size: 13px; color: #be185d; border: 1px solid #e2e8f0; }
+
+  /* AI 답변 카드 */
+  .ai-card { background: #fff; border: 1px solid #c7d2fe; border-radius: 12px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(99,102,241,.08); }
+  .ai-card-header { padding: 22px 28px; background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 50%, #2563eb 100%); color: #fff; display: flex; align-items: center; gap: 14px; }
+  .ai-card-icon { width: 44px; height: 44px; background: rgba(255,255,255,.15); backdrop-filter: blur(8px); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .ai-card-header-text h3 { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+  .ai-card-header-text p { font-size: 13px; opacity: .8; }
+  .ai-card-badge { margin-left: auto; padding: 6px 16px; background: rgba(255,255,255,.15); backdrop-filter: blur(8px); border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .ai-card-notice { padding: 14px 28px; background: linear-gradient(135deg, #f5f3ff, #eef2ff); border-bottom: 1px solid #ddd6fe; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #5b21b6; }
+  .ai-card-body { padding: 28px; font-size: 15px; line-height: 1.9; color: #1e293b; }
+  .ai-card-body p { margin-bottom: 16px; }
+  .ai-card-body p:last-child { margin-bottom: 0; }
+  .ai-card-body strong { color: #1e293b; }
+  .ai-card-body h4 { font-size: 15px; color: #4338ca; margin: 18px 0 8px; font-weight: 700; }
+  .ai-card-body h4:first-child { margin-top: 0; }
+  .ai-card-body code { background: #eef2ff; padding: 2px 7px; border-radius: 4px; font-family: Consolas, Menlo, monospace; font-size: 13px; color: #4338ca; }
+  .ai-card-body pre { background: #1e1b4b; color: #c7d2fe; padding: 18px 22px; border-radius: 10px; overflow-x: auto; margin: 16px 0; font-family: Consolas, Menlo, monospace; font-size: 13px; line-height: 1.6; box-shadow: inset 0 1px 3px rgba(0,0,0,.3); }
+  .ai-card-body pre code { background: none; padding: 0; color: inherit; }
+  .ai-card-body ul { padding-left: 1.3rem; margin: 6px 0; }
+  .ai-card-body li { margin: 4px 0; }
+  .ai-card-body table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  .ai-card-body table th { background: #eef2ff; padding: 8px 12px; text-align: left; font-weight: 600; color: #4338ca; }
+  .ai-card-body table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+
+  /* 출처 카드 */
+  .ai-card-sources { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0; }
+  .ai-card-sources-title { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+  .ai-src { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #f8fafc; border: 1px solid transparent; border-radius: 10px; margin-bottom: 8px; transition: all .15s; cursor: pointer; }
+  .ai-src:hover { background: #eff6ff; border-color: #c7d2fe; }
+  .ai-src-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .ai-src-icon.board { background: #dbeafe; color: #2563eb; }
+  .ai-src-icon.email { background: #fef3c7; color: #d97706; }
+  .ai-src-icon.doc { background: #dcfce7; color: #059669; }
+  .ai-src-text { flex: 1; }
+  .ai-src-name { font-weight: 500; color: #1e293b; font-size: 14px; }
+  .ai-src-meta { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+  .ai-src-match { font-size: 12px; color: #059669; font-weight: 700; background: #dcfce7; padding: 2px 8px; border-radius: 10px; }
+
+  /* 신뢰도 바 */
+  .ai-card-confidence { display: flex; align-items: center; gap: 14px; margin-top: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; }
+  .ai-card-confidence-label { font-size: 13px; color: #94a3b8; font-weight: 500; }
+  .ai-card-confidence-bar { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .ai-card-confidence-fill { height: 100%; border-radius: 4px; }
+  .ai-card-confidence-fill.high { background: linear-gradient(90deg, #059669, #10b981); }
+  .ai-card-confidence-fill.mid { background: linear-gradient(90deg, #d97706, #f59e0b); }
+  .ai-card-confidence-value { font-size: 15px; font-weight: 700; }
+  .ai-card-confidence-value.high { color: #059669; }
+  .ai-card-confidence-value.mid { color: #d97706; }
+
+  /* 액션 영역 */
+  .ai-card-actions { padding: 24px 28px; background: linear-gradient(180deg, #fafbff, #f8fafc); border-top: 1px solid #e2e8f0; }
+  .ai-card-actions-title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+  .ai-card-actions-desc { font-size: 13px; color: #94a3b8; margin-bottom: 18px; }
+  .ai-card-action-btns { display: flex; gap: 14px; }
+  .ai-card-action-btn { flex: 1; padding: 18px 22px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: all .2s; text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .ai-card-action-btn:hover { box-shadow: 0 4px 6px rgba(0,0,0,.06); transform: translateY(-2px); }
+  .ai-card-action-btn.accept:hover { border-color: #059669; background: #dcfce7; }
+  .ai-card-action-btn.request:hover { border-color: #d97706; background: #fffbeb; }
+  .ai-card-action-btn.partial:hover { border-color: #2563eb; background: #eff6ff; }
+  .ai-card-action-btn .icon { font-size: 26px; margin-bottom: 10px; }
+  .ai-card-action-btn .title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .ai-card-action-btn .desc { font-size: 13px; color: #94a3b8; }
+
+  /* 피드백 폼 */
+  .ai-card-feedback { margin-top: 18px; padding: 18px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; display: none; box-shadow: 0 1px 3px rgba(0,0,0,.08); animation: cardFadeIn .2s ease; }
+  .ai-card-feedback.show { display: block; }
+  @keyframes cardFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .ai-card-feedback-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .ai-card-feedback textarea { width: 100%; height: 80px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; transition: border-color .2s, box-shadow .2s; }
+  .ai-card-feedback textarea:focus { outline: none; border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
+  .ai-card-feedback-actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 10px; }
+  .btn-card { padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all .15s; }
+  .btn-card.green { background: #059669; color: #fff; box-shadow: 0 2px 6px rgba(5,150,105,.2); }
+  .btn-card.green:hover { background: #047857; transform: translateY(-1px); }
+  .btn-card.amber { background: #d97706; color: #fff; box-shadow: 0 2px 6px rgba(217,119,6,.2); }
+  .btn-card.amber:hover { background: #b45309; transform: translateY(-1px); }
+  .btn-card.blue { background: #2563eb; color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,.2); }
+  .btn-card.blue:hover { background: #1d4ed8; transform: translateY(-1px); }
+  .btn-card.gray { background: #fff; color: #475569; border-color: #e2e8f0; }
+  .btn-card.gray:hover { background: #f8fafc; }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">DEMO - W-Tech QNA AI 자동 답변 시스템 프로토타입</div>
+
+<!-- 헤더 -->
+<div class="header">
+  <div class="logo"><span class="w">W</span> inswave</div>
+  <nav>
+    <a href="#">기술자료</a>
+    <a href="#" class="active" id="navQna" onclick="event.preventDefault();showTab('list')">질의응답</a>
+    <a href="#" id="navLicense" onclick="event.preventDefault();showTab('license')">라이선스 발급</a>
+    <a href="#">교육신청/일정</a>
+  </nav>
+  <div class="header-right">
+    <span>Q 검색</span>
+    <span>LOGIN</span>
+    <span>SIGN UP</span>
+  </div>
+</div>
+
+<!-- Q&A 배너 -->
+<div class="qa-banner" id="qaBanner">
+  <div class="rocket">&#128640;</div>
+  <h1>Q&A</h1>
+  <p id="bannerDesc">다른 사용자들의 질문과 함께 답을 찾아보세요.<br>공유된 경험을 통해 더 많은 정보를 얻을 수 있습니다.</p>
+</div>
+
+<div class="container">
+
+  <!-- 서브 탭 제거, 버튼은 게시판 하단에 배치 -->
+
+  <!-- ===================== 목록 ===================== -->
+  <div id="list-wrap">
+    <!-- 검색 -->
+    <div class="search-bar">
+      <select><option>제목</option><option>내용</option><option>작성자</option></select>
+      <input class="search-input" type="text" placeholder="검색어를 입력하세요.">
+      <button class="search-btn">&#128269;</button>
+    </div>
+
+    <div class="total-count">총 <strong>10,937건</strong>의 글이 있습니다.</div>
+
+    <table class="board-table">
+      <thead>
+        <tr>
+          <th style="width:65px" class="center">번호</th>
+          <th style="width:85px" class="center">상태</th>
+          <th style="width:130px">제품명</th>
+          <th>제목</th>
+          <th style="width:90px" class="center">등록일</th>
+          <th style="width:60px" class="center">작성자</th>
+          <th style="width:50px" class="center">조회수</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="center">공지</td><td class="center"><span class="status notice">공지</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td><td>[공지] 작성 방법 (글작성 전 필독)</td><td class="center">2011-03-21</td><td class="center">관리자</td><td class="center">4229</td></tr>
+        <tr onclick="showDetail('ai-new')">
+          <td class="center">109...</td><td class="center"><span class="status ai-answered">AI답변</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">gridView 특정 셀 편집 불가 설정 방법 문의 <span class="comment-count">1</span><span class="ai-badge">AI</span></td>
+          <td class="center">2026-04-13</td><td class="center">***</td><td class="center">3</td>
+        </tr>
+        <tr onclick="showDetail('ai-eng')">
+          <td class="center">109...</td><td class="center"><span class="status resolved">해결</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">마우스 오른쪽 버튼 이벤트 문의 <span class="comment-count">2</span><span class="ai-badge">AI</span></td>
+          <td class="center">2026-04-12</td><td class="center">***</td><td class="center">7</td>
+        </tr>
+        <tr onclick="showDetail('legacy')">
+          <td class="center">109...</td><td class="center"><span class="status resolved">해결</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">데모 라이센스 부탁드립니다. <span class="comment-count">1</span></td>
+          <td class="center">2026-04-13</td><td class="center">***</td><td class="center">8</td>
+        </tr>
+        <tr>
+          <td class="center">109...</td><td class="center"><span class="status reviewing">검토중</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">그리드 컬럼에 붙여넣기 할때 데이터 가공 문의 <span class="comment-count">0</span></td>
+          <td class="center">2026-04-10</td><td class="center">***</td><td class="center">17</td>
+        </tr>
+        <tr>
+          <td class="center">109...</td><td class="center"><span class="status reviewing">검토중</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">웹스퀘어 MCP, 개발 툴 질문 <span class="comment-count">1</span></td>
+          <td class="center">2026-04-09</td><td class="center">***</td><td class="center">19</td>
+        </tr>
+        <tr>
+          <td class="center">109...</td><td class="center"><span class="status resolved">해결</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">InputType="calendar"인 컬럼 포함한 그리드뷰 스크롤 이동 시 row가 증가하...</td>
+          <td class="center">2026-04-09</td><td class="center">***</td><td class="center">18</td>
+        </tr>
+        <tr>
+          <td class="center">109...</td><td class="center"><span class="status reviewing">검토중</span></td><td><span class="product-icon"><span class="icon">w5</span> WebSquare5</span></td>
+          <td class="title-cell">컴포넌트 tooltip 관련 속성 문의 <span class="comment-count">1</span></td>
+          <td class="center">2026-04-09</td><td class="center">***</td><td class="center">15</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pagination">
+      <button class="arrow">&laquo;</button>
+      <button class="arrow">&lsaquo;</button>
+      <button class="active">1</button>
+      <button>2</button>
+      <button>3</button>
+      <button>4</button>
+      <button>5</button>
+      <button class="arrow">&rsaquo;</button>
+      <button class="arrow">&raquo;</button>
+    </div>
+    <div class="write-btn-wrap">
+      <button class="btn btn-blue" onclick="showTab('write')">문의하기</button>
+    </div>
+  </div>
+
+  <!-- ===================== 상세: AI 답변 (신규) ===================== -->
+  <div id="detail-ai-new" class="detail-wrap">
+    <button class="back-btn" onclick="backToList()">&larr; 목록</button>
+
+    <!-- 문의 카드 -->
+    <div class="q-card">
+      <div class="q-card-header">
+        <span class="q-card-status ai-answered">AI답변</span>
+        <div class="q-card-title-area">
+          <div class="q-card-title">gridView 특정 셀 편집 불가 설정 방법 문의</div>
+          <div class="q-card-meta">
+            <span>번호: 10935</span><span>등록일: 2026.04.13 10:25</span><span>조회수: 3</span>
+          </div>
+        </div>
+        <div class="q-card-product"><span style="color:#2563eb;font-weight:700">w5</span> WebSquare5</div>
+      </div>
+      <div class="q-card-body">
+        <div class="q-card-section">
+          <div class="q-card-label">개요</div>
+          <div class="q-card-content">gridView에서 특정 조건에 따라 셀의 편집을 막고 싶습니다.<br>예를 들어, 상태가 "확정"인 행의 특정 컬럼은 수정할 수 없도록 하고 싶은데, 어떤 방법이 있는지 문의드립니다.</div>
+        </div>
+        <div class="q-card-section">
+          <div class="q-card-label">재현 방법</div>
+          <div class="q-card-content">1. gridView에 데이터 조회<br>2. 상태 컬럼이 "확정"인 행의 금액 컬럼 클릭<br>3. 편집이 가능한 상태</div>
+        </div>
+        <div class="q-card-section">
+          <div class="q-card-label">버전</div>
+          <div class="q-card-content">version: 5.0_3.7 / build: 20260110</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 답변 카드 -->
+    <div class="ai-card" id="aiCard1">
+      <div class="ai-card-header">
+        <div class="ai-card-icon">🤖</div>
+        <div class="ai-card-header-text">
+          <h3>AI 자동 답변</h3>
+          <p>기존 기술지원 데이터를 분석하여 생성된 답변입니다</p>
+        </div>
+        <div class="ai-card-badge">Beta</div>
+      </div>
+      <div class="ai-card-notice"><span>ℹ️</span> 본 답변은 AI가 기존 기술지원 데이터를 분석하여 자동 생성한 내용입니다. 검토 후 채택하시거나, 추가 답변을 요청하실 수 있습니다.</div>
+      <div class="ai-card-body">
+        <p>안녕하세요. 인스웨이브 기술지원팀입니다.<br>gridView 특정 셀의 편집 제어와 관련하여 확인 후 답변드립니다.</p>
+
+        <h4>1. 원인 분석</h4>
+        <p>gridView의 셀 편집 가능 여부는 컬럼 단위의 <code>readOnly</code> 속성 또는 셀 단위의 동적 제어를 통해 설정할 수 있습니다.</p>
+
+        <h4>2. 해결 방법</h4>
+        <p><code>oncellclick</code> 이벤트에서 조건에 따라 <code>setCellReadOnly</code> API를 사용하여 셀 단위로 편집을 제어할 수 있습니다.</p>
+<pre><code>// gridView의 oncellclick 이벤트
+var rowIndex = info.rowIndex;
+var colId = info.columnId;
+var status = gridView1.getCellData(rowIndex, "status");
+
+if (status === "확정") {
+    gridView1.setCellReadOnly(rowIndex, colId, true);
+} else {
+    gridView1.setCellReadOnly(rowIndex, colId, false);
+}</code></pre>
+
+        <h4>3. 추가 확인 사항</h4>
+        <ul>
+          <li><code>setCellReadOnly</code>는 WebSquare 5.0_3.5 이상에서 지원됩니다.</li>
+          <li>행 전체를 읽기 전용으로 설정하려면 <code>setRowReadOnly</code> API를 사용하실 수 있습니다.</li>
+        </ul>
+
+        <!-- 출처 -->
+        <div class="ai-card-sources">
+          <div class="ai-card-sources-title">📚 참고한 자료</div>
+          <div class="ai-src"><div class="ai-src-icon board">📋</div><div class="ai-src-text"><div class="ai-src-name">gridView setCellReadOnly 셀 편집 제어</div><div class="ai-src-meta">W-Tech QNA #8432</div></div><div class="ai-src-match">91.2%</div></div>
+          <div class="ai-src"><div class="ai-src-icon board">📋</div><div class="ai-src-text"><div class="ai-src-name">gridView readOnly 동적 설정 방법</div><div class="ai-src-meta">W-Tech QNA #7891</div></div><div class="ai-src-match">85.7%</div></div>
+          <div class="ai-src"><div class="ai-src-icon doc">📄</div><div class="ai-src-text"><div class="ai-src-name">WebSquare5 API Reference - setCellReadOnly</div><div class="ai-src-meta">API 가이드 SP5</div></div><div class="ai-src-match">82.3%</div></div>
+        </div>
+
+        <!-- 신뢰도 -->
+        <div class="ai-card-confidence">
+          <span class="ai-card-confidence-label">답변 신뢰도</span>
+          <div class="ai-card-confidence-bar"><div class="ai-card-confidence-fill high" style="width:87%"></div></div>
+          <span class="ai-card-confidence-value high">87%</span>
+        </div>
+      </div>
+
+      <!-- 액션 -->
+      <div class="ai-card-actions" id="aiActions1">
+        <div class="ai-card-actions-title">이 답변이 도움이 되셨나요?</div>
+        <div class="ai-card-actions-desc">AI 답변을 채택하시거나, 기술지원팀의 추가 검토를 요청하실 수 있습니다.</div>
+        <div class="ai-card-action-btns">
+          <button class="ai-card-action-btn accept" onclick="cardAction('accept',1)"><div class="icon">✅</div><div class="title">이 답변 채택</div><div class="desc">AI 답변으로 문의가 해결되었습니다</div></button>
+          <button class="ai-card-action-btn request" onclick="cardAction('request',1)"><div class="icon">👨‍💼</div><div class="title">엔지니어 답변 요청</div><div class="desc">기술지원팀의 검토가 필요합니다</div></button>
+          <button class="ai-card-action-btn partial" onclick="cardAction('partial',1)"><div class="icon">💬</div><div class="title">추가 질문</div><div class="desc">추가 문의 사항이 있습니다</div></button>
+        </div>
+        <div class="ai-card-feedback" id="fb-accept-1"><div class="ai-card-feedback-title">AI 답변을 채택합니다</div><textarea placeholder="(선택) 추가 의견이 있으시면 작성해 주세요."></textarea><div class="ai-card-feedback-actions"><button class="btn-card gray" onclick="cardCancel(1)">취소</button><button class="btn-card green" onclick="cardConfirm('accept',1)">채택 완료</button></div></div>
+        <div class="ai-card-feedback" id="fb-request-1"><div class="ai-card-feedback-title">기술지원팀에 추가 답변을 요청합니다</div><textarea placeholder="추가로 확인이 필요한 사항을 작성해 주세요."></textarea><div class="ai-card-feedback-actions"><button class="btn-card gray" onclick="cardCancel(1)">취소</button><button class="btn-card amber" onclick="cardConfirm('request',1)">답변 요청</button></div></div>
+        <div class="ai-card-feedback" id="fb-partial-1"><div class="ai-card-feedback-title">추가 질문을 작성해 주세요</div><textarea placeholder="AI 답변에서 부족했던 부분이나 추가로 궁금한 점을 작성해 주세요.">setCellReadOnly 대신 setColumnProp으로 컬럼 전체를 readOnly 처리하는 방법도 있나요?</textarea><div class="ai-card-feedback-actions"><button class="btn-card gray" onclick="cardCancel(1)">취소</button><button class="btn-card blue" onclick="cardConfirm('partial',1)">질문 등록</button></div></div>
+      </div>
+    </div>
+
+    <!-- 추가 질문 등록 결과 -->
+    <div id="partialResult" style="display:none;">
+      <!-- 등록된 질문 -->
+      <div class="q-card" style="border-left:3px solid #2563eb;">
+        <div class="q-card-header" style="padding:16px 24px;">
+          <span class="q-card-status reviewing" style="font-size:11px;padding:3px 10px;">추가 질문</span>
+          <div class="q-card-title-area">
+            <div style="font-size:14px;color:#1e293b;line-height:1.7;" id="partialQuestionText"></div>
+            <div class="q-card-meta"><span id="partialQuestionTime"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 재답변 로딩 -->
+      <div id="aiReLoading" class="ai-card">
+        <div class="ai-card-header">
+          <div class="ai-card-icon">🤖</div>
+          <div class="ai-card-header-text">
+            <h3>AI 재답변 생성 중...</h3>
+            <p>추가 문의에 대한 답변을 분석하고 있습니다</p>
+          </div>
+        </div>
+        <div class="ai-card-body" style="text-align:center;padding:40px 28px;">
+          <div id="reLoadDots" style="font-size:28px;color:#6366f1;letter-spacing:6px;">...</div>
+          <div style="margin-top:16px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+            <span id="reStep1" style="display:inline-block;background:#eef2ff;color:#4338ca;font-size:12px;padding:5px 14px;border-radius:20px;">RAG 검색 중...</span>
+            <span id="reStep2" style="display:none;background:#eef2ff;color:#4338ca;font-size:12px;padding:5px 14px;border-radius:20px;">답변 생성 중...</span>
+            <span id="reStep3" style="display:none;background:#eef2ff;color:#4338ca;font-size:12px;padding:5px 14px;border-radius:20px;">API 검증 중...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 재답변 결과 -->
+      <div id="aiReResult" style="display:none;">
+        <div class="ai-card">
+          <div class="ai-card-header">
+            <div class="ai-card-icon">🤖</div>
+            <div class="ai-card-header-text">
+              <h3>AI 재답변</h3>
+              <p>추가 문의에 대한 보완 답변입니다</p>
+            </div>
+            <div class="ai-card-badge">Beta</div>
+          </div>
+          <div class="ai-card-body">
+            <p>추가 문의하신 <code>setColumnProp</code>을 활용한 컬럼 단위 readOnly 제어 방법에 대해 안내드립니다.</p>
+
+            <h4>1. setColumnProp 사용 방법</h4>
+            <p><code>setColumnProp</code> API를 사용하면 컬럼 전체의 속성을 한번에 변경할 수 있습니다. 다만, 이 방법은 해당 컬럼의 <strong>모든 행</strong>에 적용되므로 특정 조건의 행만 제어하려면 <code>setCellReadOnly</code>가 더 적합합니다.</p>
+<pre><code>// 컬럼 전체를 readOnly로 설정
+gridView1.setColumnProp("amount", "readOnly", true);
+
+// 조건부 컬럼 제어가 필요한 경우
+var rowCount = gridView1.getRowCount();
+for (var i = 0; i &lt; rowCount; i++) {
+    var status = gridView1.getCellData(i, "status");
+    if (status === "확정") {
+        gridView1.setCellReadOnly(i, "amount", true);
+    }
+}</code></pre>
+
+            <h4>2. 두 API 비교</h4>
+            <table>
+              <thead><tr><th>API</th><th>적용 범위</th><th>용도</th></tr></thead>
+              <tbody>
+                <tr><td><code>setColumnProp</code></td><td>컬럼 전체 (모든 행)</td><td>컬럼 일괄 제어</td></tr>
+                <tr><td><code>setCellReadOnly</code></td><td>특정 셀 (행+컬럼)</td><td>조건부 셀 제어</td></tr>
+              </tbody>
+            </table>
+
+            <h4>3. 추가 확인 사항</h4>
+            <ul>
+              <li><code>setColumnProp</code> 적용 후 개별 셀에 <code>setCellReadOnly</code>를 사용하면, 셀 단위 설정이 우선합니다.</li>
+              <li>조건부 제어가 목적이면 이전 답변의 <code>setCellReadOnly</code> 방식을 권장드립니다.</li>
+            </ul>
+
+            <div class="ai-card-sources">
+              <div class="ai-card-sources-title">📚 참고한 자료</div>
+              <div class="ai-src"><div class="ai-src-icon board">📋</div><div class="ai-src-text"><div class="ai-src-name">gridView setCellReadOnly 셀 편집 제어</div><div class="ai-src-meta">W-Tech QNA #8432</div></div><div class="ai-src-match">91.2%</div></div>
+              <div class="ai-src"><div class="ai-src-icon doc">📄</div><div class="ai-src-text"><div class="ai-src-name">WebSquare5 API Reference - setColumnProp</div><div class="ai-src-meta">API 가이드 SP5</div></div><div class="ai-src-match">88.5%</div></div>
+            </div>
+
+            <div class="ai-card-confidence">
+              <span class="ai-card-confidence-label">답변 신뢰도</span>
+              <div class="ai-card-confidence-bar"><div class="ai-card-confidence-fill mid" style="width:79%"></div></div>
+              <span class="ai-card-confidence-value mid">79%</span>
+            </div>
+          </div>
+
+          <!-- 재답변 액션 -->
+          <div class="ai-card-actions" id="aiActions2">
+            <div class="ai-card-actions-title">이 답변이 도움이 되셨나요?</div>
+            <div class="ai-card-actions-desc">AI 답변을 채택하시거나, 기술지원팀의 추가 검토를 요청하실 수 있습니다.</div>
+            <div class="ai-card-action-btns">
+              <button class="ai-card-action-btn accept" onclick="cardAction('accept',2)"><div class="icon">✅</div><div class="title">이 답변 채택</div><div class="desc">AI 답변으로 문의가 해결되었습니다</div></button>
+              <button class="ai-card-action-btn request" onclick="cardAction('request',2)"><div class="icon">👨‍💼</div><div class="title">엔지니어 답변 요청</div><div class="desc">기술지원팀의 검토가 필요합니다</div></button>
+            </div>
+            <div class="ai-card-feedback" id="fb-accept-2"><div class="ai-card-feedback-title">AI 답변을 채택합니다</div><textarea placeholder="(선택) 추가 의견이 있으시면 작성해 주세요."></textarea><div class="ai-card-feedback-actions"><button class="btn-card gray" onclick="cardCancel(2)">취소</button><button class="btn-card green" onclick="cardConfirm('accept',2)">채택 완료</button></div></div>
+            <div class="ai-card-feedback" id="fb-request-2"><div class="ai-card-feedback-title">기술지원팀에 추가 답변을 요청합니다</div><textarea placeholder="추가로 확인이 필요한 사항을 작성해 주세요."></textarea><div class="ai-card-feedback-actions"><button class="btn-card gray" onclick="cardCancel(2)">취소</button><button class="btn-card amber" onclick="cardConfirm('request',2)">답변 요청</button></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      <select><option>검토중</option><option>해결</option></select>
+      <button class="btn btn-white btn-sm">수정</button>
+      <button class="btn btn-white btn-sm">삭제</button>
+      <button class="btn btn-white btn-sm" onclick="backToList()">목록</button>
+    </div>
+  </div>
+
+  <!-- ===================== 상세: AI + 엔지니어 답변 ===================== -->
+  <div id="detail-ai-eng" class="detail-wrap">
+    <button class="back-btn" onclick="backToList()">&larr; 목록</button>
+
+    <!-- 문의 카드 -->
+    <div class="q-card">
+      <div class="q-card-header">
+        <span class="q-card-status resolved">해결</span>
+        <div class="q-card-title-area">
+          <div class="q-card-title">마우스 오른쪽 버튼 이벤트 문의</div>
+          <div class="q-card-meta">
+            <span>번호: 10934</span><span>등록일: 2026.04.12 09:05</span><span>조회수: 7</span>
+          </div>
+        </div>
+        <div class="q-card-product"><span style="color:#2563eb;font-weight:700">w5</span> WebSquare5</div>
+      </div>
+      <div class="q-card-body">
+        <div class="q-card-section">
+          <div class="q-card-label">개요</div>
+          <div class="q-card-content">컴포넌트에 마우스 onmousedown 이벤트를 사용하고 있습니다.<br>웹브라우저에서 마우스 오른쪽 버튼을 누르면 브라우저의 컨텍스트 메뉴가 나오는데<br>나오지 않게 하는 방법이 있나요?</div>
+        </div>
+        <div class="q-card-section">
+          <div class="q-card-label">버전</div>
+          <div class="q-card-content">version: 6.0 / build: 20251219_0951_x86_864_B</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 답변 카드 (채택 완료 상태) -->
+    <div class="ai-card">
+      <div class="ai-card-header">
+        <div class="ai-card-icon">🤖</div>
+        <div class="ai-card-header-text">
+          <h3>AI 자동 답변</h3>
+          <p>기존 기술지원 데이터를 분석하여 생성된 답변입니다</p>
+        </div>
+        <div class="ai-card-badge" style="background:rgba(16,185,129,.3)">✓ 채택됨</div>
+      </div>
+      <div class="ai-card-body">
+        <p>브라우저에서 마우스 우클릭 시 표시되는 컨텍스트 메뉴는 웹스퀘어가 아닌 브라우저에서 제공하는 <code>contextmenu</code> 이벤트를 통해 제어할 수 있습니다.</p>
+        <p><code>preventDefault()</code>를 호출하면 우클릭 메뉴가 표시되지 않도록 설정할 수 있습니다.</p>
+<pre><code>// 전체 페이지 우클릭 방지
+window.addEventListener("contextmenu", function(e) {
+    e.preventDefault();
+});
+
+// 특정 요소만 우클릭 방지
+var el = document.getElementById("myElement");
+el.addEventListener("contextmenu", function(e) {
+    e.preventDefault();
+});</code></pre>
+
+        <div class="ai-card-sources">
+          <div class="ai-card-sources-title">📚 참고한 자료</div>
+          <div class="ai-src"><div class="ai-src-icon board">📋</div><div class="ai-src-text"><div class="ai-src-name">contextmenu 우클릭 방지 방법</div><div class="ai-src-meta">W-Tech QNA #10879</div></div><div class="ai-src-match">95.1%</div></div>
+          <div class="ai-src"><div class="ai-src-icon board">📋</div><div class="ai-src-text"><div class="ai-src-name">마우스 이벤트 제어 관련</div><div class="ai-src-meta">W-Tech QNA #9234</div></div><div class="ai-src-match">78.4%</div></div>
+        </div>
+
+        <div class="ai-card-confidence">
+          <span class="ai-card-confidence-label">답변 신뢰도</span>
+          <div class="ai-card-confidence-bar"><div class="ai-card-confidence-fill high" style="width:92%"></div></div>
+          <span class="ai-card-confidence-value high">92%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 엔지니어 답변 -->
+    <div class="engineer-section">
+      <div class="engineer-header">
+        <span class="engineer-badge">엔지니어</span>
+        엔지니어 추가 답변
+        <span style="margin-left:auto;font-weight:400;color:#999;font-size:12px;">2026-04-12 14:30</span>
+      </div>
+      <div class="engineer-body">
+        <p>안녕하세요. 인스웨이브 기술지원팀입니다.</p>
+        <p style="margin-top:8px;">AI 답변 내용이 정확합니다. 추가로 안내드리면, WebSquare 컴포넌트에서 직접 <code>oncontextmenu</code> 이벤트를 사용하실 수도 있습니다.</p>
+        <p style="margin-top:8px;">해당 이벤트에서 <code>return false;</code>를 하면 동일하게 컨텍스트 메뉴를 차단할 수 있습니다.</p>
+        <p style="margin-top:8px;">감사합니다.</p>
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      <select><option>해결</option><option>검토중</option></select>
+      <button class="btn btn-white btn-sm">수정</button>
+      <button class="btn btn-white btn-sm">삭제</button>
+      <button class="btn btn-white btn-sm" onclick="backToList()">목록</button>
+    </div>
+
+    <!-- 댓글 -->
+    <div class="comment-section">
+      <h3>댓글 <span style="color:#2563eb">2</span></h3>
+      <div class="comment-item">
+        <span class="comment-author">백승호</span><span style="font-size:11px;color:#999;">2026-04-12 14:30</span>
+        <div class="comment-text">안녕하세요. AI 답변 내용이 정확합니다. 추가로 oncontextmenu 이벤트도 활용 가능합니다.</div>
+      </div>
+      <div class="comment-item">
+        <span class="comment-author">***</span><span style="font-size:11px;color:#999;">2026-04-12 15:10</span>
+        <div class="comment-text">답변 감사합니다. 해결되었습니다!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 상세: 기존 방식 (엔지니어 수동 답변) ===================== -->
+  <div id="detail-legacy" class="detail-wrap">
+    <button class="back-btn" onclick="backToList()">&larr; 목록</button>
+
+    <!-- 문의 카드 -->
+    <div class="q-card">
+      <div class="q-card-header">
+        <span class="q-card-status resolved">해결</span>
+        <div class="q-card-title-area">
+          <div class="q-card-title">데모 라이센스 부탁드립니다.</div>
+          <div class="q-card-meta">
+            <span>번호: 10933</span><span>등록일: 2026.04.13 09:05</span><span>조회수: 8</span>
+          </div>
+        </div>
+        <div class="q-card-product"><span style="color:#2563eb;font-weight:700">w5</span> WebSquare5</div>
+      </div>
+      <div class="q-card-body">
+        <div class="q-card-section">
+          <div class="q-card-label">개요</div>
+          <div class="q-card-content">지능화 단말관리 시스템 프로젝트에서 사용할 데모 라이선스 요청드립니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      <select><option>해결</option><option>검토중</option></select>
+      <button class="btn btn-white btn-sm">수정</button>
+      <button class="btn btn-white btn-sm">삭제</button>
+      <button class="btn btn-white btn-sm" onclick="backToList()">목록</button>
+    </div>
+
+    <!-- 댓글 -->
+    <div class="comment-section">
+      <h3>댓글쓰기</h3>
+      <div class="comment-write">
+        <textarea placeholder="댓글을 작성해주세요."></textarea>
+        <span class="upload-btn">&#128206;</span>
+        <button class="btn btn-blue btn-sm submit-btn">&#8593;</button>
+      </div>
+      <div class="comment-note">- 문서 첨부 제한 : 248Bytes/5.00MB | 파일 제한 크기 : 5.00MB (허용 확장자 : *.*)<br>- 첨부 파일은 작성자와 관리자에게만 노출됩니다.</div>
+
+      <h3 style="margin-top:24px;">댓글 <span style="color:#2563eb">1</span></h3>
+      <div class="comment-item">
+        <span class="comment-author">백승호</span><span style="font-size:11px;color:#999;"> 2026-04-13 10:20</span>
+        <div class="comment-text">안녕하세요.<br>라이선스 메일로 발송 드렸습니다.<br>확인 부탁드립니다.<br>감사합니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 글쓰기 ===================== -->
+  <div id="write-wrap" class="write-wrap">
+    <button class="back-btn" onclick="showTab('list')">&larr; 목록</button>
+    <div class="write-top">
+      <label class="checkbox-label"><input type="checkbox"> 공지 여부</label>
+      <select><option>제품 선택</option><option>WebSquare5</option><option>WebSquareAI</option><option>W-Hybrid</option></select>
+      <input type="text" placeholder="제목을 입력해주세요.">
+    </div>
+
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px 16px;margin-top:16px;font-size:13px;color:#991b1b;line-height:1.7;">
+      <strong>유지보수 계약 고객사만 기술지원이 가능합니다.</strong><br>
+      회사명 입력 시 유지보수 계약 여부가 자동으로 확인됩니다. 계약이 확인되지 않는 경우 답변이 제한될 수 있습니다.
+    </div>
+
+    <!-- 신규 필드: 버전, 회사명, 프로젝트, 카테고리 -->
+    <div class="write-extra">
+      <div class="row">
+        <div class="field">
+          <label>웹스퀘어 버전 <span class="req">*</span></label>
+          <input type="text" placeholder="예: 5.0_3.7 / build: 20260110">
+        </div>
+        <div class="field">
+          <label>카테고리 <span class="req">*</span></label>
+          <select id="catSelect" onchange="checkCategory()">
+            <option value="">선택</option>
+            <option>GridView</option>
+            <option>입력 컴포넌트</option>
+            <option>레이아웃/화면</option>
+            <option>이벤트/액션</option>
+            <option>데이터 처리</option>
+            <option>엑셀/파일</option>
+            <option>Servlet/서버</option>
+            <option>설치/설정</option>
+            <option value="etc">기타</option>
+          </select>
+          <div class="category-warn" id="catWarn">* [기타] 카테고리는 AI 자동 답변 대상에서 제외됩니다.</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>회사명 <span class="req">*</span></label>
+          <input type="text" placeholder="회사명 입력" id="compInput" oninput="showCompDrop()">
+          <div id="compDrop" style="display:none;border:1px solid #ddd;border-radius:4px;margin-top:2px;overflow:hidden;font-size:12px;">
+            <div style="padding:6px 10px;cursor:pointer;background:#f8f9fb;" onclick="pickComp(this, true)">[주] 테스트컴퍼니 <span style="color:#059669">유지보수 계약 (~2026-12-31)</span></div>
+            <div style="padding:6px 10px;cursor:pointer;border-top:1px solid #eee;" onclick="pickComp(this, true)">[주] 샘플기업 <span style="color:#059669">유지보수 계약 (~2027-03-31)</span></div>
+            <div style="padding:6px 10px;cursor:pointer;border-top:1px solid #eee;" onclick="pickComp(this, false)">[주] 미계약기업 <span style="color:#dc2626">계약 미확인</span></div>
+          </div>
+          <div id="contractOk" style="display:none;font-size:11px;margin-top:3px;"></div>
+        </div>
+        <div class="field">
+          <label>프로젝트명</label>
+          <input type="text" placeholder="프로젝트명 입력">
+        </div>
+      </div>
+    </div>
+
+    <div class="write-editor">
+      <div class="write-toolbar">
+        <button>B</button><button>I</button><button>U</button>
+        <button>S</button><button>X<sub>2</sub></button><button>X<sup>2</sup></button>
+        <select><option>스타일</option></select>
+        <select><option>문단</option></select>
+        <select><option>글꼴</option></select>
+        <select><option>크기</option></select>
+      </div>
+      <div class="write-content">
+        <p class="tmpl">&lt;&lt; 개요 &gt;&gt;</p>
+        <p class="guide">( 어떤 기능을 구현하려는지, 어떤 문제가 발생하는지 구체적으로 기술해 주시기 바랍니다. )</p>
+        <br>
+        <p class="tmpl">&lt;&lt; 현재 동작 &gt;&gt;</p>
+        <p class="guide">( 실제로 어떻게 동작하는지 기술해 주세요. 에러 메시지가 있다면 함께 기재해 주세요. )</p>
+        <br>
+        <p class="tmpl">&lt;&lt; 기대 동작 &gt;&gt;</p>
+        <p class="guide">( 원래 의도한 동작을 기술해 주세요. )</p>
+        <br>
+        <p class="tmpl">&lt;&lt; 재현 방법 &gt;&gt;</p>
+        <p class="guide">( 재현이 쉽도록 순서를 명시하여 주시면 좋습니다. 관련 소스는 가급적 첨부파일로 올려 주시기 바랍니다. )</p>
+        <br>
+        <p class="tmpl">&lt;&lt; 비고 &gt;&gt;</p>
+      </div>
+    </div>
+
+    <div class="attach-section">
+      <h4>첨부파일</h4>
+      <div class="attach-note">
+        - 문서 첨부 제한 : 248Bytes/5.00MB | 파일 제한 크기 : 5.00MB (허용 확장자 : *.*)<br>
+        - 첨부 파일은 작성자와 관리자에게만 노출됩니다.
+      </div>
+      <div class="attach-btns">
+        <button class="btn btn-white btn-sm">파일업로드 &#128206;</button>
+        <button class="btn btn-sm" style="background:#dc2626;color:#fff;">파일삭제</button>
+      </div>
+    </div>
+
+    <div class="write-actions">
+      <button class="btn btn-blue" onclick="alert('문의가 등록되었습니다.\nAI가 자동으로 답변을 생성합니다.')">저장</button>
+      <button class="btn btn-white" onclick="showTab('list')">취소</button>
+    </div>
+  </div>
+
+
+  <!-- ===================== 라이선스 발급 ===================== -->
+  <div id="license-wrap" class="license-wrap">
+
+    <!-- 서브 탭: 발급 신청 / 신청 내역 -->
+    <div class="sub-tabs">
+      <button class="active" id="licTabApply" onclick="showLicTab('apply')">라이선스 발급 신청</button>
+      <button id="licTabHistory" onclick="showLicTab('history')">신청 내역</button>
+    </div>
+
+    <!-- 발급 신청 -->
+    <div id="lic-apply">
+      <div class="license-form">
+        <h2>데모 라이선스 자동 발급</h2>
+        <p class="desc">WebSquare 데모 라이선스를 즉시 발급받을 수 있습니다.</p>
+
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#991b1b;">
+          <strong style="display:block;margin-bottom:4px;">유지보수 계약 필수</strong>
+          데모 라이선스는 유지보수 계약이 체결된 고객사에 한하여 발급 가능합니다. 계약이 확인되지 않는 경우 발급이 불가합니다.
+        </div>
+
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;line-height:1.8;">
+          <strong style="display:block;margin-bottom:4px;">교육용 라이선스 안내</strong>
+          교육용으로 사용하시는 것이 목적이라면 W-Tech 사이트에서 <strong>WEBSQUARE_DEV_PACK</strong>을 제공하고 있습니다.<br><br>
+          WEBSQUARE_DEV_PACK(SP5)은 해당 홈페이지 상단의 <strong>교육신청/일정 &rarr; 교육 예약 확인/변경/취소 &rarr; 하단의 DEVPACK download</strong>을 통해 다운로드하실 수 있습니다.<br>
+          교육용 개발 라이선스는 WEBSQUARE_DEV_PACK 안에 포함되어 있는 점 참고 부탁드립니다.
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>제품 <span class="req">*</span></label>
+            <select><option>WebSquare5 SP4</option><option>WebSquare5 SP5</option><option>WebSquare AI</option><option>W-Hybrid</option></select>
+          </div>
+          <div class="form-group">
+            <label>라이선스 유형 <span class="req">*</span></label>
+            <select><option>데모 (30일)</option><option>데모 (90일)</option><option>개발자 라이선스</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>회사명 <span class="req">*</span></label>
+            <input type="text" placeholder="회사명 입력">
+          </div>
+          <div class="form-group">
+            <label>담당자 이메일 <span class="req">*</span></label>
+            <input type="email" placeholder="example@company.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>서버 호스트명</label>
+            <input type="text" placeholder="예: app-server-01 (선택사항)">
+          </div>
+          <div class="form-group">
+            <label>용도</label>
+            <input type="text" placeholder="사용 목적 간단 설명">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-blue" onclick="submitLicense()">라이선스 발급 요청</button>
+        </div>
+
+        <div class="license-result" id="licResult">
+          <h4>라이선스 발급이 요청되었습니다</h4>
+          <p style="font-size:13px;color:#166534;margin-top:4px;">담당자 확인 후 입력하신 이메일로 라이선스가 발송됩니다.</p>
+          <table>
+            <tr><td>제품</td><td>WebSquare5 SP5</td></tr>
+            <tr><td>유형</td><td>데모 (30일)</td></tr>
+            <tr><td>신청일</td><td>2026-04-14</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 신청 내역 -->
+    <div id="lic-history" style="display:none;">
+      <div class="total-count" style="margin-top:8px;">총 <strong>3건</strong>의 신청 내역이 있습니다.</div>
+      <table class="board-table">
+        <thead>
+          <tr>
+            <th style="width:50px" class="center">번호</th>
+            <th style="width:80px" class="center">상태</th>
+            <th>제품</th>
+            <th style="width:100px">유형</th>
+            <th style="width:140px">유효기간</th>
+            <th style="width:90px" class="center">신청일</th>
+            <th style="width:70px" class="center">신청자</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="center">3</td>
+            <td class="center"><span class="status resolved">발급완료</span></td>
+            <td>WebSquare5 SP5</td>
+            <td>데모 (30일)</td>
+            <td>2026-04-10 ~ 2026-05-10</td>
+            <td class="center">2026-04-10</td>
+            <td class="center">***</td>
+          </tr>
+          <tr>
+            <td class="center">2</td>
+            <td class="center"><span class="status resolved">발급완료</span></td>
+            <td>WebSquare AI</td>
+            <td>데모 (90일)</td>
+            <td>2026-03-01 ~ 2026-05-30</td>
+            <td class="center">2026-03-01</td>
+            <td class="center">***</td>
+          </tr>
+          <tr>
+            <td class="center">1</td>
+            <td class="center"><span class="status" style="background:#e5e7eb;color:#6b7280;">만료</span></td>
+            <td>WebSquare5 SP4</td>
+            <td>데모 (30일)</td>
+            <td>2025-12-01 ~ 2025-12-31</td>
+            <td class="center">2025-12-01</td>
+            <td class="center">***</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+var listBannerText = '다른 사용자들의 질문과 함께 답을 찾아보세요.<br>공유된 경험을 통해 더 많은 정보를 얻을 수 있습니다.';
+var subBannerText = '프로젝트 및 유지보수 하는데 필요한 각종<br>기술 지식 및 문제 해결의 대한 묻고 답하는 공간입니다.';
+var licBannerTitle = '라이선스 발급';
+var licBannerText = 'WebSquare 데모 라이선스를 신청하고 발급 내역을 확인할 수 있습니다.';
+
+function setBanner(tab) {
+  var h1 = document.querySelector('#qaBanner h1');
+  var desc = document.getElementById('bannerDesc');
+  if (tab === 'license') {
+    h1.textContent = licBannerTitle;
+    desc.innerHTML = licBannerText;
+  } else {
+    h1.textContent = 'Q&A';
+    desc.innerHTML = tab === 'list' ? listBannerText : subBannerText;
+  }
+}
+
+function setNavActive(tab) {
+  document.getElementById('navQna').classList.toggle('active', tab !== 'license');
+  document.getElementById('navLicense').classList.toggle('active', tab === 'license');
+}
+
+function showTab(tab) {
+  document.getElementById('list-wrap').style.display = tab === 'list' ? 'block' : 'none';
+  document.getElementById('write-wrap').style.display = tab === 'write' ? 'block' : 'none';
+  document.getElementById('license-wrap').style.display = tab === 'license' ? 'block' : 'none';
+  document.querySelectorAll('.detail-wrap').forEach(el => el.style.display = 'none');
+  setBanner(tab);
+  setNavActive(tab);
+}
+
+function showLicTab(sub) {
+  document.getElementById('lic-apply').style.display = sub === 'apply' ? 'block' : 'none';
+  document.getElementById('lic-history').style.display = sub === 'history' ? 'block' : 'none';
+  document.getElementById('licTabApply').classList.toggle('active', sub === 'apply');
+  document.getElementById('licTabHistory').classList.toggle('active', sub === 'history');
+}
+
+function showDetail(type) {
+  document.getElementById('list-wrap').style.display = 'none';
+  document.getElementById('license-wrap').style.display = 'none';
+  document.querySelectorAll('.detail-wrap').forEach(el => el.style.display = 'none');
+  if (type === 'ai-new') document.getElementById('detail-ai-new').style.display = 'block';
+  if (type === 'ai-eng') document.getElementById('detail-ai-eng').style.display = 'block';
+  if (type === 'legacy') document.getElementById('detail-legacy').style.display = 'block';
+  setBanner('detail');
+  setNavActive('qna');
+}
+
+function backToList() {
+  document.querySelectorAll('.detail-wrap').forEach(el => el.style.display = 'none');
+  document.getElementById('list-wrap').style.display = 'block';
+  setBanner('list');
+  setNavActive('qna');
+}
+
+function checkCategory() {
+  document.getElementById('catWarn').style.display = document.getElementById('catSelect').value === 'etc' ? 'block' : 'none';
+}
+
+function showCompDrop() {
+  var v = document.getElementById('compInput').value;
+  document.getElementById('compDrop').style.display = v.length > 0 ? 'block' : 'none';
+  document.getElementById('contractOk').style.display = 'none';
+}
+
+function pickComp(el, hasContract) {
+  var name = el.textContent.split(/유지보수|계약/)[0].trim();
+  document.getElementById('compInput').value = name;
+  document.getElementById('compDrop').style.display = 'none';
+  var info = document.getElementById('contractOk');
+  if (hasContract) {
+    info.textContent = el.querySelector('span').textContent;
+    info.style.color = '#059669';
+  } else {
+    info.textContent = '계약 미확인 \u2014 답변이 제한될 수 있습니다.';
+    info.style.color = '#dc2626';
+  }
+  info.style.display = 'block';
+}
+
+function submitReply() {
+  var text = document.getElementById('replyText').value.trim();
+  if (!text) { alert('댓글을 입력해주세요.'); return; }
+
+  // 댓글 등록
+  document.getElementById('replyContent').textContent = text;
+  document.getElementById('replyResult').style.display = 'block';
+  document.getElementById('replyText').value = '';
+  document.getElementById('replyBtn').disabled = true;
+  document.getElementById('replyBtn').style.opacity = '0.5';
+  document.getElementById('rewriteNote').style.display = 'none';
+
+  // AI 로딩 표시
+  document.getElementById('aiLoading').style.display = 'block';
+  document.getElementById('aiLoading').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // 로딩 단계 애니메이션
+  var dots = document.getElementById('loadingDots');
+  var dotInterval = setInterval(function() {
+    dots.textContent = dots.textContent.length >= 6 ? '.' : dots.textContent + '.';
+  }, 400);
+
+  setTimeout(function() {
+    document.getElementById('loadStep1').style.background = '#d1fae5';
+    document.getElementById('loadStep1').style.color = '#065f46';
+    document.getElementById('loadStep1').textContent = 'RAG 검색 완료';
+    document.getElementById('loadStep2').style.display = 'inline-block';
+  }, 1200);
+
+  setTimeout(function() {
+    document.getElementById('loadStep2').style.background = '#d1fae5';
+    document.getElementById('loadStep2').style.color = '#065f46';
+    document.getElementById('loadStep2').textContent = '답변 생성 완료';
+    document.getElementById('loadStep3').style.display = 'inline-block';
+  }, 2500);
+
+  setTimeout(function() {
+    document.getElementById('loadStep3').style.background = '#d1fae5';
+    document.getElementById('loadStep3').style.color = '#065f46';
+    document.getElementById('loadStep3').textContent = 'API 검증 완료';
+  }, 3500);
+
+  // 재답변 표시
+  setTimeout(function() {
+    clearInterval(dotInterval);
+    document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiReAnswer').style.display = 'block';
+    document.getElementById('aiReAnswer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 4200);
+}
+
+function cardAction(type, cardNum) {
+  var actions = document.getElementById('aiActions' + cardNum);
+  actions.querySelectorAll('.ai-card-action-btn').forEach(function(b){b.style.borderColor='#e2e8f0';b.style.background='#fff';});
+  actions.querySelectorAll('.ai-card-feedback').forEach(function(f){f.classList.remove('show');});
+  var fb = document.getElementById('fb-' + type + '-' + cardNum);
+  if (fb) { fb.classList.add('show'); fb.scrollIntoView({behavior:'smooth',block:'center'}); }
+}
+function cardCancel(cardNum) {
+  var actions = document.getElementById('aiActions' + cardNum);
+  actions.querySelectorAll('.ai-card-feedback').forEach(function(f){f.classList.remove('show');});
+}
+function cardConfirm(type, cardNum) {
+  if (type === 'accept') {
+    var actions = document.getElementById('aiActions' + cardNum);
+    actions.innerHTML = '<div style="text-align:center;padding:20px;"><div style="font-size:32px;margin-bottom:10px;">✅</div><div style="font-weight:700;font-size:15px;color:#059669;">AI 답변이 채택되었습니다</div><div style="font-size:13px;color:#94a3b8;margin-top:4px;">피드백이 AI 개선에 활용됩니다. 감사합니다.</div></div>';
+  } else if (type === 'request') {
+    var actions = document.getElementById('aiActions' + cardNum);
+    actions.innerHTML = '<div style="text-align:center;padding:20px;"><div style="font-size:32px;margin-bottom:10px;">📨</div><div style="font-weight:700;font-size:15px;color:#d97706;">기술지원팀에 추가 답변을 요청했습니다</div><div style="font-size:13px;color:#94a3b8;margin-top:4px;">담당자 배정 후 순차적으로 답변드리겠습니다.</div></div>';
+  } else if (type === 'partial') {
+    // 추가 질문 텍스트 가져오기
+    var textarea = document.querySelector('#fb-partial-' + cardNum + ' textarea');
+    var questionText = textarea ? textarea.value.trim() : '';
+    if (!questionText) { alert('질문을 입력해 주세요.'); return; }
+
+    // 액션 영역 숨기기
+    document.getElementById('aiActions' + cardNum).style.display = 'none';
+
+    // 질문 표시
+    var result = document.getElementById('partialResult');
+    document.getElementById('partialQuestionText').textContent = questionText;
+    var now = new Date();
+    document.getElementById('partialQuestionTime').textContent = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    result.style.display = 'block';
+    result.scrollIntoView({behavior:'smooth',block:'center'});
+
+    // 로딩 애니메이션
+    var dots = document.getElementById('reLoadDots');
+    var dotInterval = setInterval(function(){ dots.textContent = dots.textContent.length >= 6 ? '.' : dots.textContent + '.'; }, 400);
+
+    setTimeout(function(){
+      document.getElementById('reStep1').style.background = '#dcfce7';
+      document.getElementById('reStep1').style.color = '#059669';
+      document.getElementById('reStep1').textContent = 'RAG 검색 완료';
+      document.getElementById('reStep2').style.display = 'inline-block';
+    }, 1200);
+
+    setTimeout(function(){
+      document.getElementById('reStep2').style.background = '#dcfce7';
+      document.getElementById('reStep2').style.color = '#059669';
+      document.getElementById('reStep2').textContent = '답변 생성 완료';
+      document.getElementById('reStep3').style.display = 'inline-block';
+    }, 2500);
+
+    setTimeout(function(){
+      document.getElementById('reStep3').style.background = '#dcfce7';
+      document.getElementById('reStep3').style.color = '#059669';
+      document.getElementById('reStep3').textContent = 'API 검증 완료';
+    }, 3500);
+
+    setTimeout(function(){
+      clearInterval(dotInterval);
+      document.getElementById('aiReLoading').style.display = 'none';
+      document.getElementById('aiReResult').style.display = 'block';
+      document.getElementById('aiReResult').scrollIntoView({behavior:'smooth',block:'start'});
+    }, 4200);
+  }
+}
+
+function requestEngineer(targetId) {
+  var el = document.getElementById(targetId);
+  if (el.style.display === 'block') return;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  var now = new Date();
+  var timeStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  var timeEl = el.querySelector('[id^="engReqTime"]');
+  if (timeEl) timeEl.textContent = timeStr;
+  // 버튼 비활성화
+  var btn = event.target;
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  btn.style.cursor = 'default';
+  btn.textContent = '요청 완료';
+}
+
+function submitLicense() {
+  document.getElementById('licResult').classList.add('show');
+}
+</script>
+
+</body>
+</html>
