@@ -23,12 +23,26 @@ function parseRagResults(output) {
 
     const lines = block.split('\n');
     let title = '';
+    let url = '';
+    let attachmentDir = '';
+    let attachments = [];
     const contentLines = [];
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('질문:')) {
         title = trimmed.replace('질문:', '').trim();
+      } else if (trimmed.startsWith('URL:')) {
+        url = trimmed.replace('URL:', '').trim();
+      } else if (trimmed.startsWith('AttachmentDir:')) {
+        attachmentDir = trimmed.replace('AttachmentDir:', '').trim();
+      } else if (trimmed.startsWith('Attachments:')) {
+        try {
+          attachments = JSON.parse(trimmed.replace('Attachments:', '').trim());
+          if (!Array.isArray(attachments)) attachments = [];
+        } catch {
+          attachments = [];
+        }
       } else if (trimmed.startsWith('답변:')) {
         contentLines.push(trimmed.replace('답변:', '').trim());
       } else if (trimmed && trimmed !== '---') {
@@ -42,6 +56,9 @@ function parseRagResults(output) {
       source,
       similarity: `${(similarityRaw * 100).toFixed(1)}%`,
       match: Math.round(similarityRaw * 100),
+      url,
+      attachmentDir,
+      attachments,
       content: contentLines.join('\n').trim() || title,
     });
   }
@@ -67,15 +84,35 @@ function getSourceType(source) {
 
 /**
  * cases 배열 → W-Tech 표준 sources 구조로 변환
- * [{title, meta, match, type}]
+ * [{title, meta, match, url, type}]
+ *
+ * match: 0-100 정수 (유사도 %)
+ * url: 가능한 경우 원본 링크. 현재 searcher.py가 id/url을 노출 안 해서 빈 문자열.
+ *      추후 indexer/searcher가 metadata에 id+url을 넣으면 채울 수 있음.
  */
 function toSources(cases) {
-  return cases.map(c => ({
-    title: c.title,
-    meta: c.source,
-    match: `${c.match}% 일치`,
-    type: getSourceType(c.source),
-  }));
+  return cases.map(c => {
+    const out = {
+      title: c.title,
+      meta: c.source,
+      match: c.match,
+      url: c.url || '',
+      type: getSourceType(c.source),
+    };
+    // 첨부 메타가 있을 때만 attachments 노출 (없으면 응답 깔끔하게)
+    if (Array.isArray(c.attachments) && c.attachments.length > 0) {
+      out.attachments = c.attachments.map((a) => ({
+        filename: a.filename || '',
+        mimeType: a.mimeType || '',
+        size: a.size || 0,
+        // 다운로드 URL: /api/attachment?dir={attachmentDir}&filename={filename}
+        downloadUrl: c.attachmentDir
+          ? `/api/attachment?dir=${encodeURIComponent(c.attachmentDir)}&filename=${encodeURIComponent(a.filename)}`
+          : '',
+      }));
+    }
+    return out;
+  });
 }
 
 /**

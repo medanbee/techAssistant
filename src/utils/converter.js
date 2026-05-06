@@ -45,7 +45,32 @@ function convertToQA(thread) {
 
   if (!fullText || fullText.length < 10) return null;
 
-  return {
+  // 스레드 모든 메일의 첨부파일 메타데이터 수집 (실물은 saveAttachments에서 디스크에 저장)
+  const attachments = [];
+  for (const mail of thread) {
+    if (!Array.isArray(mail.attachments)) continue;
+    for (const att of mail.attachments) {
+      if (!att.filename) continue;
+      attachments.push({
+        filename: att.filename,
+        mimeType: att.contentType || '',
+        size: att.size || 0,
+      });
+    }
+  }
+
+  // 첨부 폴더 경로 (data/raw/ 기준 상대경로). saveAttachments 명명 규칙과 동일
+  let attachmentDir = '';
+  if (attachments.length > 0) {
+    const dateStr = firstMail.date ? firstMail.date.split('T')[0] : 'unknown';
+    const safeSubject = (firstMail.subject || 'no-subject')
+      .replace(/[<>:"/\\|?*\[\]]/g, '_')
+      .substring(0, 50)
+      .trim();
+    attachmentDir = `gmail_attachments/${dateStr}_${safeSubject}`;
+  }
+
+  const result = {
     category: '',
     subcategory: '',
     question: subject,
@@ -54,6 +79,13 @@ function convertToQA(thread) {
     date: firstMail.date || '',
     tags: extractTags(subject + ' ' + fullText),
   };
+
+  if (attachments.length > 0) {
+    result.attachments = attachments;
+    result.attachmentDir = attachmentDir;
+  }
+
+  return result;
 }
 
 /**

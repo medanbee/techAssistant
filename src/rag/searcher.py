@@ -278,8 +278,18 @@ def main():
     for r in result["results"]:
         v = r.get("vector_score", 0)
         b = r.get("bm25_score", 0)
-        print(f"#{r['rank']} [최종: {r['score']:.4f} | 벡터: {v:.4f} | BM25: {b:.4f}] {r['metadata'].get('source', '')}")
-        print(f"  질문: {r['metadata'].get('question', '')[:100]}")
+        meta = r["metadata"]
+        print(f"#{r['rank']} [최종: {r['score']:.4f} | 벡터: {v:.4f} | BM25: {b:.4f}] {meta.get('source', '')}")
+        print(f"  질문: {meta.get('question', '')[:100]}")
+        url = meta.get("url", "")
+        if url:
+            print(f"  URL: {url}")
+        attachment_dir = meta.get("attachmentDir", "")
+        if attachment_dir:
+            print(f"  AttachmentDir: {attachment_dir}")
+        attachments_json = meta.get("attachments", "")
+        if attachments_json:
+            print(f"  Attachments: {attachments_json}")
         doc = r.get("document", "")
         if doc:
             print(f"  답변: {doc[:500]}")

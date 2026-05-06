@@ -208,11 +208,13 @@ def make_clean_document(item):
 
 def extract_metadata(item):
     """확장 메타데이터 추출"""
+    import json as _json
+
     question = item.get("question", "")
     answer = item.get("answer", "")
     full_text = question + " " + answer
 
-    return {
+    metadata = {
         "category": item.get("categoryLabel", item.get("category", "")),
         "subcategory": item.get("subcategoryLabel", item.get("subcategory", "")),
         "source": item.get("source", ""),
@@ -220,3 +222,17 @@ def extract_metadata(item):
         "version": extract_version(full_text),
         "component": extract_component(full_text),
     }
+
+    # ChromaDB는 batch 내 metadata 키가 일관되어야 정상 update됨.
+    # 따라서 url/attachments/attachmentDir은 빈 값이라도 항상 키 포함.
+    metadata["url"] = item.get("url", "")
+
+    attachments = item.get("attachments")
+    if attachments and isinstance(attachments, list) and len(attachments) > 0:
+        metadata["attachments"] = _json.dumps(attachments, ensure_ascii=False)
+    else:
+        metadata["attachments"] = ""
+
+    metadata["attachmentDir"] = item.get("attachmentDir", "")
+
+    return metadata

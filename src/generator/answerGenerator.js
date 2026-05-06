@@ -4,6 +4,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { loadConfig } = require('../utils/config');
 
 const MAX_CONTEXT_PER_ITEM = 2000;
@@ -25,10 +26,6 @@ function buildSystemPrompt(answerConfig, hasRagResults) {
    - 관련 에러 메시지 또는 로그
    - 재현 방법"`;
 
-  const sourceRule = hasRagResults
-    ? '5. **출처 명시** — 참고한 사례의 출처를 [데이터 유형] + [출처 위치] + [세부 항목] + [버전/시점] 형태로 반드시 포함합니다.'
-    : '5. **출처 명시** — 출처를 "WebSquare 공식 문서 기반 일반 안내"로 표기합니다. 내부 데이터 출처를 임의로 만들지 마십시오.';
-
   return `당신은 인스웨이브 WebSquare 기술지원 전문가입니다.
 
 아래 규칙을 반드시 준수하여 답변을 작성하십시오:
@@ -40,19 +37,18 @@ ${ragRule}
    - 참고자료에 정확히 매칭되는 코드가 없어 새로 작성하는 경우, 코드 블록 아래에 반드시 "※ 위 코드는 유사 사례 기반 참고용입니다. 실제 동작 확인 후 적용해주세요."를 표기합니다.
    - WebSquare 엔진에서만 동작하는 코드는 직접 테스트할 수 없으므로, 검증되지 않은 코드임을 명시합니다.
 4. **표 형식 활용** — 속성/옵션은 표 형태로 정리합니다.
-${sourceRule}
-6. **출처에 RAG 유사도 포함** — 참고한 사례의 출처에 RAG 검색 유사도 점수를 함께 표기합니다.
-7. **API/이벤트/속성명 정확성**
+5. **출처/유사도/참고자료 본문 미포함** — 참고한 사례의 출처, RAG 유사도 점수, "참고 자료" 섹션 등은 답변 본문에 절대 포함하지 마십시오. 이 정보는 응답의 별도 sources 필드로 자동 전달됩니다. 답변 본문에는 답변 내용만 작성하십시오.
+6. **API/이벤트/속성명 정확성**
    - 참고자료에 존재하지 않는 WebSquare API, 이벤트, 속성명을 절대 만들어내지 마십시오.
    - 다른 컴포넌트의 API를 해당 컴포넌트에도 있다고 추측하지 마십시오. 참고자료에서 정확히 확인된 것만 사용합니다.
    - 확실하지 않은 API는 "확인이 필요합니다"로 표기합니다.
-8. **개인정보 제외** — 개인명, 이메일, 회사명, 프로젝트명 등 식별 정보를 절대 포함하지 않습니다.
-9. **버전 고려** — WebSquare 버전, POI/servlet 버전 호환성을 반드시 고려합니다.
-10. **버전 존재 검증** — 답변에 특정 소프트웨어 버전을 언급할 때, 해당 버전이 실제 존재하는지 확인합니다.
+7. **개인정보 제외** — 개인명, 이메일, 회사명, 프로젝트명 등 식별 정보를 절대 포함하지 않습니다.
+8. **버전 고려** — WebSquare 버전, POI/servlet 버전 호환성을 반드시 고려합니다.
+9. **버전 존재 검증** — 답변에 특정 소프트웨어 버전을 언급할 때, 해당 버전이 실제 존재하는지 확인합니다.
    - 엔진 파일명에서 버전을 추출할 때 네이밍 규칙에 주의: 예) "poi4_1.8"은 "POI 4.x + Java 1.8"이지 "POI 4.1.8"이 아닙니다.
    - Apache POI 4.x 마지막 버전은 4.1.2입니다. (4.1.8은 존재하지 않음)
    - 파일명의 _1.5, _1.8 접미사는 Java/Servlet 버전을 의미합니다.
-11. **정보 부족 시** — 사용 중인 버전, 라이브러리, 에러 메시지를 확인하는 추가 질문을 포함합니다.
+10. **정보 부족 시** — 사용 중인 버전, 라이브러리, 에러 메시지를 확인하는 추가 질문을 포함합니다.
 
 답변은 반드시 아래 템플릿 형식으로 작성하십시오:
 ---
@@ -67,10 +63,63 @@ ${template.replace('{{name}}', name)}
 class AnswerGenerator {
   constructor(config) {
     const fullConfig = loadConfig();
-    const cfg = config || fullConfig.anthropic;
-    this.client = new Anthropic({ apiKey: cfg.apiKey });
-    this.model = cfg.model || 'claude-sonnet-4-20250514';
+    this.provider = fullConfig.llmProvider || 'anthropic';
     this.answerConfig = fullConfig.answer;
+
+    if (this.provider === 'gemini') {
+      const cfg = config || fullConfig.gemini || {};
+      if (!cfg.apiKey) throw new Error('Gemini API 키가 설정되지 않았습니다 (config.gemini.apiKey).');
+      this.geminiClient = new GoogleGenerativeAI(cfg.apiKey);
+      this.model = cfg.model || 'gemini-2.0-flash';
+    } else {
+      const cfg = config || fullConfig.anthropic || {};
+      if (!cfg.apiKey) throw new Error('Anthropic API 키가 설정되지 않았습니다 (config.anthropic.apiKey).');
+      this.client = new Anthropic({ apiKey: cfg.apiKey });
+      this.model = cfg.model || 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * LLM 호출 통합 — provider별 API 차이 흡수
+   * 반환: { text, inputTokens, outputTokens, model }
+   */
+  async _callLLM(systemPrompt, userMessage) {
+    if (this.provider === 'gemini') {
+      const model = this.geminiClient.getGenerativeModel({
+        model: this.model,
+        systemInstruction: systemPrompt,
+      });
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+        generationConfig: { maxOutputTokens: 4096 },
+      });
+      const response = result.response;
+      const usage = response.usageMetadata || {};
+      return {
+        text: response.text(),
+        inputTokens: usage.promptTokenCount || 0,
+        outputTokens: usage.candidatesTokenCount || 0,
+        model: this.model,
+      };
+    }
+
+    // Anthropic
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+    const text = response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n');
+    return {
+      text,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      model: response.model,
+    };
   }
 
   /**
@@ -86,28 +135,13 @@ class AnswerGenerator {
     const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
     const userMessage = this._buildUserMessage(question, ragContext, options, hasRagResults);
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userMessage },
-      ],
-    });
-
-    const answer = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+    const llm = await this._callLLM(systemPrompt, userMessage);
 
     return {
-      answer,
+      answer: llm.text,
       hasRagResults,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      },
-      model: response.model,
+      usage: { inputTokens: llm.inputTokens, outputTokens: llm.outputTokens },
+      model: llm.model,
     };
   }
 
@@ -171,28 +205,13 @@ class AnswerGenerator {
     message += `## 고객 추가 문의\n\n${followUp}\n\n`;
     message += '위 대화 맥락을 바탕으로, 고객의 추가 문의에 대한 답변을 작성해 주세요. 이전 답변과 중복되는 내용은 최소화하고, 추가 문의에 집중하여 답변합니다.';
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: message },
-      ],
-    });
-
-    const answer = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+    const llm = await this._callLLM(systemPrompt, message);
 
     return {
-      answer,
+      answer: llm.text,
       hasRagResults,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      },
-      model: response.model,
+      usage: { inputTokens: llm.inputTokens, outputTokens: llm.outputTokens },
+      model: llm.model,
     };
   }
 
@@ -225,28 +244,13 @@ ${invalidApis.map(api => `- ${api}`).join('\n')}
 위 미확인 API를 모두 제거하고, RAG 검색 결과에서 확인된 실제 API만 사용하여 답변을 다시 작성해 주세요.
 존재 여부가 불확실한 API는 사용하지 마세요.`;
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userMessage + '\n\n' + regenerateInstruction },
-      ],
-    });
-
-    const answer = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+    const llm = await this._callLLM(systemPrompt, userMessage + '\n\n' + regenerateInstruction);
 
     return {
-      answer,
+      answer: llm.text,
       hasRagResults,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      },
-      model: response.model,
+      usage: { inputTokens: llm.inputTokens, outputTokens: llm.outputTokens },
+      model: llm.model,
     };
   }
 }

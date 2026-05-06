@@ -22,7 +22,7 @@ except ImportError:
 # 설정
 EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 COLLECTION_NAME = "techassistant_qa"
-BATCH_SIZE = 100
+BATCH_SIZE = 256  # 큰 배치로 임베딩 throughput 향상
 CHROMA_DIR = str(Path(__file__).parent.parent.parent / "data" / "chroma")
 PROCESSED_DIR = str(Path(__file__).parent.parent.parent / "data" / "processed")
 
