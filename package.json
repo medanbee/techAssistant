@@ -13,6 +13,7 @@
     "audit:gmail-attachments:local": "node scripts/audit_gmail_attachments.js --with-local-map",
     "eval:search": "node scripts/eval_search_quality.js",
     "eval:wtech-holdout": "node scripts/build_wtech_eval_set.js",
+    "eval:wtech-latest": "node scripts/eval_collect_latest_wtech.js",
     "classify": "node scripts/classify.js",
     "index": "python3 src/rag/indexer.py",
     "index:reset": "python3 src/rag/indexer.py --reset",
