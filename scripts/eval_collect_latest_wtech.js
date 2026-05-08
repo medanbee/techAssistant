@@ -28,6 +28,7 @@ function parseArgs(argv) {
 
   if (positional[0] && !Number.isNaN(Number(positional[0]))) args.limit = Number(positional[0]);
   if (positional[1] && !Number.isNaN(Number(positional[1]))) args.maxPages = Number(positional[1]);
+  if (positional[2]) args.output = path.resolve(positional[2]);
 
   return args;
 }
