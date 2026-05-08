@@ -24,6 +24,16 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
 const BLOCKED_EXT = new Set([
   '.exe', '.bat', '.cmd', '.sh', '.ps1', '.msi', '.scr', '.com', '.vbs', '.dll',
 ]);
+const ALLOWED_DIR_PREFIXES = ['dev-guide-sample/'];
+
+function normalizeDir(dir) {
+  return String(dir || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function isAllowedAttachmentDir(dir) {
+  const normalized = normalizeDir(dir);
+  return ALLOWED_DIR_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
 
 // MIME 추정
 function guessMimeType(filename) {
@@ -53,6 +63,10 @@ router.get('/', apiKeyAuth, (req, res) => {
 
   if (!dir || !filename) {
     return res.status(400).json({ error: 'dir, filename 쿼리 파라미터 필수' });
+  }
+
+  if (!isAllowedAttachmentDir(dir)) {
+    return res.status(403).json({ error: '허용되지 않은 첨부파일 경로' });
   }
 
   // 차단 확장자
@@ -96,6 +110,10 @@ router.get('/list', apiKeyAuth, (req, res) => {
   const { dir } = req.query;
   if (!dir) {
     return res.status(400).json({ error: 'dir 쿼리 파라미터 필수' });
+  }
+
+  if (!isAllowedAttachmentDir(dir)) {
+    return res.status(403).json({ error: '허용되지 않은 첨부파일 경로' });
   }
 
   const candidate = path.resolve(RAW_DIR, dir);

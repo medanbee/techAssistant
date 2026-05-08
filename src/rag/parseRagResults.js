@@ -120,8 +120,8 @@ function toSources(cases) {
       url: maskSensitiveInfo(c.url || ''),
       type: getSourceType(c.source),
     };
-    // 첨부 메타가 있을 때만 attachments 노출 (없으면 응답 깔끔하게)
-    if (Array.isArray(c.attachments) && c.attachments.length > 0) {
+    // 검증된 개발가이드 샘플만 첨부로 노출한다. Gmail 고객 첨부는 노출하지 않는다.
+    if (isSampleAttachmentCase(c) && Array.isArray(c.attachments) && c.attachments.length > 0) {
       out.attachments = c.attachments.map((a) => ({
         filename: maskSensitiveInfo(a.filename || ''),
         mimeType: a.mimeType || '',

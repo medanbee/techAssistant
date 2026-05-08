@@ -29,6 +29,14 @@ const SEARCH_QUERIES = [
 ];
 
 const BATCH_SIZE = 30;
+const BLOCKED_ATTACHMENT_EXT = new Set(['.ellicense', '.license', '.lic', '.key']);
+const BLOCKED_ATTACHMENT_NAME = /license|licence|라이선스|라이센스/i;
+
+function isBlockedGmailAttachment(filename) {
+  const name = String(filename || '');
+  const ext = path.extname(name).toLowerCase();
+  return BLOCKED_ATTACHMENT_EXT.has(ext) || BLOCKED_ATTACHMENT_NAME.test(name);
+}
 
 class GmailCollector {
   constructor(config) {
@@ -209,12 +217,14 @@ class GmailCollector {
     for (const raw of rawMails) {
       try {
         const mail = await simpleParser(raw);
-        const attachments = (mail.attachments || []).map((att) => ({
-          filename: att.filename || 'unknown',
-          contentType: att.contentType || '',
-          size: att.size || 0,
-          content: att.content, // Buffer
-        }));
+        const attachments = (mail.attachments || [])
+          .filter((att) => !isBlockedGmailAttachment(att.filename || 'unknown'))
+          .map((att) => ({
+            filename: att.filename || 'unknown',
+            contentType: att.contentType || '',
+            size: att.size || 0,
+            content: att.content, // Buffer
+          }));
 
         parsed.push({
           subject: mail.subject || '',
@@ -258,6 +268,7 @@ class GmailCollector {
 
       for (const att of mail.attachments) {
         if (!att.content) continue;
+        if (isBlockedGmailAttachment(att.filename)) continue;
         const filePath = path.join(mailDir, att.filename);
         await fs.writeFile(filePath, att.content);
         count++;

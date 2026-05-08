@@ -29,6 +29,15 @@ const SKIP_PATTERNS = [
   /세금계산서/i,
   /연말정산/i,
 ];
+const BLOCKED_ATTACHMENT_EXT = new Set(['.ellicense', '.license', '.lic', '.key']);
+const BLOCKED_ATTACHMENT_NAME = /license|licence|라이선스|라이센스/i;
+
+function isBlockedAttachment(filename) {
+  const name = String(filename || '');
+  const extMatch = name.match(/(\.[^.]+)$/);
+  const ext = extMatch ? extMatch[1].toLowerCase() : '';
+  return BLOCKED_ATTACHMENT_EXT.has(ext) || BLOCKED_ATTACHMENT_NAME.test(name);
+}
 
 function convertToQA(thread) {
   if (!thread || thread.length === 0) return null;
@@ -51,6 +60,7 @@ function convertToQA(thread) {
     if (!Array.isArray(mail.attachments)) continue;
     for (const att of mail.attachments) {
       if (!att.filename) continue;
+      if (isBlockedAttachment(att.filename)) continue;
       attachments.push({
         filename: att.filename,
         mimeType: att.contentType || '',
