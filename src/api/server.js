@@ -11,6 +11,7 @@ const searchRouter = require('./routes/search');
 const queueRouter = require('./routes/queue');
 const scanRouter = require('./routes/scan');
 const attachmentRouter = require('./routes/attachment');
+const { maskObjectSensitiveInfo } = require('../utils/masking');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,7 +26,7 @@ app.use((req, res, next) => {
   if (req.method === 'POST') {
     console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
     console.log('  Content-Type:', req.headers['content-type']);
-    console.log('  Body:', JSON.stringify(req.body).substring(0, 500));
+    console.log('  Body:', JSON.stringify(maskObjectSensitiveInfo(req.body)).substring(0, 500));
   }
   next();
 });

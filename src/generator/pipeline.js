@@ -1,6 +1,6 @@
 /**
- * 답변 생성 파이프라인
- * 문의 입력 → RAG 검색 → 분류 → 답변 생성 → 출력
+ * Answer generation pipeline.
+ * Input question -> classify -> RAG search -> LLM answer -> API verification -> save.
  */
 
 const { execFileSync } = require('child_process');
@@ -11,6 +11,7 @@ const AnswerGenerator = require('./answerGenerator');
 const ApiVerifier = require('./apiVerifier');
 const { addToQueue } = require('../api/queue');
 const { parseRagResults } = require('../rag/parseRagResults');
+const { maskSensitiveInfo } = require('../utils/masking');
 
 class AnswerPipeline {
   constructor() {
@@ -21,82 +22,84 @@ class AnswerPipeline {
   }
 
   /**
-   * 전체 파이프라인 실행
+   * Run the full answer pipeline.
    *
-   * @param {string} question - 고객 기술문의 내용
+   * @param {string} question - customer support question
    * @param {object} options - { version, libraries, topK, categoryFilter }
    * @returns {object} - { answer, classification, ragResults, usage }
    */
   async process(question, options = {}) {
-    console.log('[파이프라인] 시작...');
+    console.log('[Pipeline] start');
 
-    // 1. 문의 분류
-    const classification = this.classifier.classify({ question, answer: '' });
-    console.log(`[파이프라인] 분류: ${classification.categoryLabel} > ${classification.subcategoryLabel}`);
+    const safeQuestion = maskSensitiveInfo(question);
 
-    // 2. RAG 검색
-    const ragResult = this._searchRAG(question, options);
-    console.log(`[파이프라인] RAG 검색: ${ragResult.resultCount}건`);
+    const classification = this.classifier.classify({ question: safeQuestion, answer: '' });
+    console.log(`[Pipeline] classification: ${classification.categoryLabel} > ${classification.subcategoryLabel}`);
 
-    // 3. 답변 생성 + API 검증 (최대 3회 재생성)
+    const ragResult = this._searchRAG(safeQuestion, options);
+    const safeRagContext = maskSensitiveInfo(ragResult.context);
+    console.log(`[Pipeline] RAG results: ${ragResult.resultCount}`);
+
     const MAX_RETRIES = 3;
-    let result = await this.generator.generate(question, ragResult.context, {
+    let result = await this.generator.generate(safeQuestion, safeRagContext, {
       version: options.version,
       libraries: options.libraries,
     });
-    console.log(`[파이프라인] 답변 생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+    result.answer = maskSensitiveInfo(result.answer);
+    console.log(`[Pipeline] answer generated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
 
     let verification = this.verifier.verify(result.answer);
-    console.log(`[파이프라인] ${verification.summary}`);
+    console.log(`[Pipeline] ${verification.summary}`);
 
     let retryCount = 0;
     while (verification.unverified.length > 0 && retryCount < MAX_RETRIES) {
       retryCount++;
-      const invalidApis = verification.unverified.map(r => r.name);
-      console.log(`[파이프라인] 미확인 API 발견 → 재생성 (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
+      const invalidApis = verification.unverified.map((r) => r.name);
+      console.log(`[Pipeline] unverified APIs, regenerating (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
 
       result = await this.generator.regenerate(
-        question, ragResult.context, result.answer, invalidApis,
+        safeQuestion,
+        safeRagContext,
+        result.answer,
+        invalidApis,
         { version: options.version, libraries: options.libraries }
       );
-      console.log(`[파이프라인] 재생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+      result.answer = maskSensitiveInfo(result.answer);
+      console.log(`[Pipeline] regenerated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
 
       verification = this.verifier.verify(result.answer);
-      console.log(`[파이프라인] ${verification.summary}`);
+      console.log(`[Pipeline] ${verification.summary}`);
     }
 
-    // 재생성 3회 후에도 미확인 API 남아있으면 경고 표시
     if (verification.unverified.length > 0) {
-      result.answer += '\n\n---\n⚠️ **검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
+      result.answer += '\n\n---\n**검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
       for (const item of verification.unverified) {
         result.answer += `- \`${item.name}\`\n`;
       }
     }
 
-    // 4. 답변 파일 저장
-    const savedPath = this._saveAnswer(question, result, classification);
+    const savedPath = this._saveAnswer(safeQuestion, result, classification);
     if (savedPath) {
-      console.log(`[파이프라인] 답변 저장: ${savedPath}`);
+      console.log(`[Pipeline] answer saved: ${savedPath}`);
     }
 
-    // 5. 검수 큐에 추가
     try {
       const queueItem = addToQueue({
-        question,
+        question: safeQuestion,
         answer: result.answer,
         classification,
-        sources: ragResult.context ? ['RAG'] : [],
+        sources: safeRagContext ? ['RAG'] : [],
         filePath: savedPath,
       });
-      console.log(`[파이프라인] 검수 큐 추가: ${queueItem.id}`);
+      console.log(`[Pipeline] queued: ${queueItem.id}`);
     } catch (err) {
-      console.warn('[파이프라인] 큐 추가 실패:', err.message);
+      console.warn('[Pipeline] queue add failed:', err.message);
     }
 
     return {
-      question,
+      question: safeQuestion,
       classification,
-      ragResults: ragResult,
+      ragResults: { ...ragResult, context: safeRagContext },
       answer: result.answer,
       hasRagResults: result.hasRagResults,
       usage: result.usage,
@@ -107,63 +110,74 @@ class AnswerPipeline {
   }
 
   /**
-   * 재답변 파이프라인 — 원래 문의 + 이전 답변 + 추가 질문 맥락 유지
+   * Follow-up answer generation using original question, previous answer, and new question.
    *
    * @param {object} context - { originalQuestion, previousAnswer, followUp }
    * @param {object} options - { version, libraries, topK }
    * @returns {object} - { answer, ragResults, usage, model, verification, savedPath }
    */
   async processFollowUp(context, options = {}) {
-    const { originalQuestion, previousAnswer, followUp } = context;
+    const safeOriginalQuestion = maskSensitiveInfo(context.originalQuestion);
+    const safePreviousAnswer = maskSensitiveInfo(context.previousAnswer);
+    const safeFollowUp = maskSensitiveInfo(context.followUp);
 
-    console.log('[파이프라인] 재답변 시작...');
+    console.log('[Pipeline] follow-up start');
 
-    // 1. 추가 질문 기준으로 RAG 재검색
-    const ragResult = this._searchRAG(followUp, options);
-    console.log(`[파이프라인] RAG 재검색: ${ragResult.resultCount}건`);
+    const ragResult = this._searchRAG(safeFollowUp, options);
+    const safeRagContext = maskSensitiveInfo(ragResult.context);
+    console.log(`[Pipeline] follow-up RAG results: ${ragResult.resultCount}`);
 
-    // 2. 재답변 생성
     let result = await this.generator.followUp(
-      originalQuestion, previousAnswer, followUp, ragResult.context,
+      safeOriginalQuestion,
+      safePreviousAnswer,
+      safeFollowUp,
+      safeRagContext,
       { version: options.version, libraries: options.libraries }
     );
-    console.log(`[파이프라인] 재답변 생성 완료 (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
+    result.answer = maskSensitiveInfo(result.answer);
+    console.log(`[Pipeline] follow-up generated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
 
-    // 3. API 검증
     let verification = this.verifier.verify(result.answer);
-    console.log(`[파이프라인] ${verification.summary}`);
+    console.log(`[Pipeline] ${verification.summary}`);
 
     const MAX_RETRIES = 3;
     let retryCount = 0;
     while (verification.unverified.length > 0 && retryCount < MAX_RETRIES) {
       retryCount++;
-      const invalidApis = verification.unverified.map(r => r.name);
-      console.log(`[파이프라인] 미확인 API → 재생성 (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
+      const invalidApis = verification.unverified.map((r) => r.name);
+      console.log(`[Pipeline] unverified follow-up APIs, regenerating (${retryCount}/${MAX_RETRIES}): ${invalidApis.join(', ')}`);
 
       result = await this.generator.regenerate(
-        followUp, ragResult.context, result.answer, invalidApis,
+        safeFollowUp,
+        safeRagContext,
+        result.answer,
+        invalidApis,
         { version: options.version, libraries: options.libraries }
       );
+      result.answer = maskSensitiveInfo(result.answer);
       verification = this.verifier.verify(result.answer);
-      console.log(`[파이프라인] ${verification.summary}`);
+      console.log(`[Pipeline] ${verification.summary}`);
     }
 
     if (verification.unverified.length > 0) {
-      result.answer += '\n\n---\n⚠️ **검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
+      result.answer += '\n\n---\n**검증 경고**: 아래 API/속성은 내부 데이터에서 확인되지 않았습니다. 실제 존재 여부를 확인해주세요.\n';
       for (const item of verification.unverified) {
         result.answer += `- \`${item.name}\`\n`;
       }
     }
 
-    // 4. 저장
-    const savedPath = this._saveAnswer(followUp, result, this.classifier.classify({ question: followUp, answer: '' }));
+    const savedPath = this._saveAnswer(
+      safeFollowUp,
+      result,
+      this.classifier.classify({ question: safeFollowUp, answer: '' })
+    );
     if (savedPath) {
-      console.log(`[파이프라인] 재답변 저장: ${savedPath}`);
+      console.log(`[Pipeline] follow-up saved: ${savedPath}`);
     }
 
     return {
-      followUp,
-      ragResults: ragResult,
+      followUp: safeFollowUp,
+      ragResults: { ...ragResult, context: safeRagContext },
       answer: result.answer,
       hasRagResults: result.hasRagResults,
       usage: result.usage,
@@ -174,7 +188,7 @@ class AnswerPipeline {
   }
 
   /**
-   * RAG 검색 실행 (Python 프로세스 호출)
+   * Run Python RAG search.
    */
   _searchRAG(query, options) {
     try {
@@ -198,20 +212,21 @@ class AnswerPipeline {
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
       });
 
-      // Python 스크립트의 stdout에서 컨텍스트 파싱
       const cases = parseRagResults(output);
+      const fallbackCount = (output.match(/^#\d+\s/mg) || []).length;
       return {
         context: output,
-        resultCount: cases.length || (output.match(/--- 참고 사례/g) || []).length,
+        resultCount: cases.length || fallbackCount,
         cases,
       };
     } catch (err) {
-      console.warn('[파이프라인] RAG 검색 실패:', err.message);
+      console.warn('[Pipeline] RAG search failed:', err.message);
       return { context: '', resultCount: 0, cases: [] };
     }
   }
+
   /**
-   * 답변을 data/answers/날짜/주제.md 로 저장
+   * Save generated answer as markdown under data/answers/YYYY-MM-DD.
    */
   _saveAnswer(question, result, classification) {
     try {
@@ -244,13 +259,13 @@ ${result.answer.trim()}
       fs.writeFileSync(filePath, content, 'utf8');
       return filePath;
     } catch (err) {
-      console.warn('[파이프라인] 답변 저장 실패:', err.message);
+      console.warn('[Pipeline] answer save failed:', err.message);
       return null;
     }
   }
 
   /**
-   * 문의 내용에서 파일명 생성
+   * Make a safe filename from the masked question.
    */
   _toFilename(question) {
     return question
@@ -262,11 +277,11 @@ ${result.answer.trim()}
   }
 
   /**
-   * 문의 내용에서 제목 추출 (첫 줄 또는 앞 80자)
+   * Use the first line as the markdown title.
    */
   _extractTitle(question) {
     const firstLine = question.trim().split('\n')[0].trim();
-    return firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
+    return firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
   }
 }
 

@@ -1,3 +1,5 @@
+const { maskSensitiveInfo } = require('../utils/masking');
+
 /**
  * Python searcher.py 출력 파싱 공용 모듈
  *
@@ -93,16 +95,16 @@ function getSourceType(source) {
 function toSources(cases) {
   return cases.map(c => {
     const out = {
-      title: c.title,
-      meta: c.source,
+      title: maskSensitiveInfo(c.title),
+      meta: maskSensitiveInfo(c.source),
       match: c.match,
-      url: c.url || '',
+      url: maskSensitiveInfo(c.url || ''),
       type: getSourceType(c.source),
     };
     // 첨부 메타가 있을 때만 attachments 노출 (없으면 응답 깔끔하게)
     if (Array.isArray(c.attachments) && c.attachments.length > 0) {
       out.attachments = c.attachments.map((a) => ({
-        filename: a.filename || '',
+        filename: maskSensitiveInfo(a.filename || ''),
         mimeType: a.mimeType || '',
         size: a.size || 0,
         // 다운로드 URL: /api/attachment?dir={attachmentDir}&filename={filename}
