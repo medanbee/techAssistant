@@ -6,11 +6,12 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { loadConfig } = require('../utils/config');
+const { getPromptPolicyInstructions } = require('./answerPolicy');
 
 const MAX_CONTEXT_PER_ITEM = 2000;
 const MAX_TOTAL_CONTEXT = 16000;
 
-function buildSystemPrompt(answerConfig, hasRagResults) {
+function buildSystemPrompt(answerConfig, hasRagResults, answerPolicy) {
   const name = answerConfig?.responderName || '담당자';
   const template = answerConfig?.template
     || '안녕하세요.\n인스웨이브 기술지원팀 {{name}} 프로입니다.\n\n{{topic}}과 관련하여 확인 후 답변드립니다.\n\n{{content}}\n\n감사합니다.';
@@ -31,6 +32,8 @@ function buildSystemPrompt(answerConfig, hasRagResults) {
 아래 규칙을 반드시 준수하여 답변을 작성하십시오:
 
 ${ragRule}
+1-1. **답변 정책 준수** - 아래 정책은 백엔드가 문의 유형을 판단한 결과입니다. 반드시 이 정책에 맞춰 답변 강도와 표현을 조절하십시오.
+${getPromptPolicyInstructions(answerPolicy)}
 2. **답변 구조** — 원인 분석 → 해결 방법 → 추가 확인 사항 순서로 작성합니다.
 3. **기술지원 답변 톤**
    - 문의에서 확인된 현상은 먼저 명확하게 요약하고, 가장 가능성 높은 원인 흐름을 실무자가 이해할 수 있게 설명합니다.
@@ -142,7 +145,7 @@ class AnswerGenerator {
    */
   async generate(question, ragContext, options = {}) {
     const hasRagResults = !!(ragContext && !ragContext.includes('관련 사례를 찾지 못했습니다'));
-    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
+    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults, options.answerPolicy);
     const userMessage = this._buildUserMessage(question, ragContext, options, hasRagResults);
 
     const llm = await this._callLLM(systemPrompt, userMessage);
@@ -197,7 +200,7 @@ class AnswerGenerator {
    */
   async followUp(originalQuestion, previousAnswer, followUp, ragContext, options = {}) {
     const hasRagResults = !!(ragContext && !ragContext.includes('관련 사례를 찾지 못했습니다'));
-    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
+    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults, options.answerPolicy);
 
     let message = '';
 
@@ -237,7 +240,7 @@ class AnswerGenerator {
    */
   async regenerate(question, ragContext, previousAnswer, invalidApis, options = {}) {
     const hasRagResults = !!(ragContext && !ragContext.includes('관련 사례를 찾지 못했습니다'));
-    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults);
+    const systemPrompt = buildSystemPrompt(this.answerConfig, hasRagResults, options.answerPolicy);
 
     const userMessage = this._buildUserMessage(question, ragContext, options, hasRagResults);
 

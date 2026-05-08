@@ -45,6 +45,11 @@ router.post('/', async (req, res) => {
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
       sampleFiles: toSampleFiles(cases),
+      answerMode: result.answerMode,
+      riskLevel: result.riskLevel,
+      needsHumanReview: result.needsHumanReview,
+      reviewReasons: result.reviewReasons || [],
+      requiredInfo: result.requiredInfo || [],
     });
   } catch (err) {
     console.error('[API /answer] 실패:', err);
@@ -75,6 +80,11 @@ router.post('/follow-up', async (req, res) => {
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
       sampleFiles: toSampleFiles(cases),
+      answerMode: result.answerMode,
+      riskLevel: result.riskLevel,
+      needsHumanReview: result.needsHumanReview,
+      reviewReasons: result.reviewReasons || [],
+      requiredInfo: result.requiredInfo || [],
     });
   } catch (err) {
     console.error('[API /answer/follow-up] 실패:', err);
@@ -119,6 +129,11 @@ router.post('/stream', async (req, res) => {
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
       sampleFiles: toSampleFiles(cases),
+      answerMode: result.answerMode,
+      riskLevel: result.riskLevel,
+      needsHumanReview: result.needsHumanReview,
+      reviewReasons: result.reviewReasons || [],
+      requiredInfo: result.requiredInfo || [],
     });
   } catch (err) {
     send('error', { message: err.message });

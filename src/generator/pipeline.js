@@ -12,6 +12,10 @@ const ApiVerifier = require('./apiVerifier');
 const { addToQueue } = require('../api/queue');
 const { parseRagResults, buildRagContext } = require('../rag/parseRagResults');
 const { maskSensitiveInfo } = require('../utils/masking');
+const {
+  evaluateAnswerPolicy,
+  appendPolicyNotice,
+} = require('./answerPolicy');
 
 class AnswerPipeline {
   constructor() {
@@ -39,11 +43,17 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeQuestion, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] RAG results: ${ragResult.resultCount}`);
+    const answerPolicy = evaluateAnswerPolicy({
+      question: safeQuestion,
+      cases: ragResult.cases,
+    });
+    console.log(`[Pipeline] answer policy: ${answerPolicy.answerMode} (${answerPolicy.riskLevel})`);
 
     const MAX_RETRIES = 3;
     let result = await this.generator.generate(safeQuestion, safeRagContext, {
       version: options.version,
       libraries: options.libraries,
+      answerPolicy,
     });
     result.answer = maskSensitiveInfo(result.answer);
     console.log(`[Pipeline] answer generated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
@@ -62,7 +72,7 @@ class AnswerPipeline {
         safeRagContext,
         result.answer,
         invalidApis,
-        { version: options.version, libraries: options.libraries }
+        { version: options.version, libraries: options.libraries, answerPolicy }
       );
       result.answer = maskSensitiveInfo(result.answer);
       console.log(`[Pipeline] regenerated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
@@ -77,6 +87,7 @@ class AnswerPipeline {
         result.answer += `- \`${item.name}\`\n`;
       }
     }
+    result.answer = appendPolicyNotice(result.answer, answerPolicy);
 
     const savedPath = this._saveAnswer(safeQuestion, result, classification);
     if (savedPath) {
@@ -105,6 +116,12 @@ class AnswerPipeline {
       usage: result.usage,
       model: result.model,
       verification,
+      answerPolicy,
+      answerMode: answerPolicy.answerMode,
+      riskLevel: answerPolicy.riskLevel,
+      needsHumanReview: answerPolicy.needsHumanReview,
+      reviewReasons: answerPolicy.reviewReasons,
+      requiredInfo: answerPolicy.requiredInfo,
       savedPath,
     };
   }
@@ -126,13 +143,18 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeFollowUp, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] follow-up RAG results: ${ragResult.resultCount}`);
+    const answerPolicy = evaluateAnswerPolicy({
+      question: [safeOriginalQuestion, safeFollowUp].filter(Boolean).join('\n\n'),
+      cases: ragResult.cases,
+    });
+    console.log(`[Pipeline] follow-up answer policy: ${answerPolicy.answerMode} (${answerPolicy.riskLevel})`);
 
     let result = await this.generator.followUp(
       safeOriginalQuestion,
       safePreviousAnswer,
       safeFollowUp,
       safeRagContext,
-      { version: options.version, libraries: options.libraries }
+      { version: options.version, libraries: options.libraries, answerPolicy }
     );
     result.answer = maskSensitiveInfo(result.answer);
     console.log(`[Pipeline] follow-up generated (${result.usage.inputTokens + result.usage.outputTokens} tokens)`);
@@ -152,7 +174,7 @@ class AnswerPipeline {
         safeRagContext,
         result.answer,
         invalidApis,
-        { version: options.version, libraries: options.libraries }
+        { version: options.version, libraries: options.libraries, answerPolicy }
       );
       result.answer = maskSensitiveInfo(result.answer);
       verification = this.verifier.verify(result.answer);
@@ -165,6 +187,7 @@ class AnswerPipeline {
         result.answer += `- \`${item.name}\`\n`;
       }
     }
+    result.answer = appendPolicyNotice(result.answer, answerPolicy);
 
     const savedPath = this._saveAnswer(
       safeFollowUp,
@@ -183,6 +206,12 @@ class AnswerPipeline {
       usage: result.usage,
       model: result.model,
       verification,
+      answerPolicy,
+      answerMode: answerPolicy.answerMode,
+      riskLevel: answerPolicy.riskLevel,
+      needsHumanReview: answerPolicy.needsHumanReview,
+      reviewReasons: answerPolicy.reviewReasons,
+      requiredInfo: answerPolicy.requiredInfo,
       savedPath,
     };
   }
