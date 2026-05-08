@@ -32,14 +32,25 @@ function parseArgs(argv) {
     topK: 8,
     output: path.join(__dirname, '../data/review/search_quality_eval.json'),
     queriesFile: '',
+    limit: 0,
+    offset: 0,
   };
 
+  const positional = [];
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--top-k') args.topK = Number(argv[++i] || args.topK);
     else if (arg === '--output') args.output = argv[++i] || args.output;
     else if (arg === '--queries') args.queriesFile = argv[++i] || '';
+    else if (arg === '--limit') args.limit = Number(argv[++i] || 0);
+    else if (arg === '--offset') args.offset = Number(argv[++i] || 0);
+    else positional.push(arg);
   }
+
+  if (positional[0] && !args.queriesFile) args.queriesFile = positional[0];
+  if (positional[1]) args.topK = Number(positional[1]) || args.topK;
+  if (positional[2]) args.limit = Number(positional[2]) || args.limit;
+  if (positional[3]) args.output = positional[3];
 
   return args;
 }
@@ -95,7 +106,10 @@ function evaluateQuery(query, topK) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const queries = loadQueries(args.queriesFile);
+  const allQueries = loadQueries(args.queriesFile);
+  const queries = args.limit > 0
+    ? allQueries.slice(args.offset, args.offset + args.limit)
+    : allQueries.slice(args.offset);
   const results = [];
 
   for (const [index, query] of queries.entries()) {
@@ -110,6 +124,9 @@ function main() {
   const report = {
     generatedAt: new Date().toISOString(),
     topK: args.topK,
+    offset: args.offset,
+    limit: args.limit || null,
+    totalQueryCount: allQueries.length,
     queryCount: queries.length,
     results,
   };
