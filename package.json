@@ -9,6 +9,7 @@
     "collect:gmail": "node scripts/collect.js --source gmail",
     "collect:wtech": "node scripts/collect.js --source wtech",
     "collect:confluence": "node scripts/collect.js --source confluence",
+    "audit:gmail-attachments": "node scripts/audit_gmail_attachments.js",
     "classify": "node scripts/classify.js",
     "index": "python3 src/rag/indexer.py",
     "index:reset": "python3 src/rag/indexer.py --reset",
