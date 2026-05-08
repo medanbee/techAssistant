@@ -87,6 +87,22 @@ function getSourceType(source) {
   return 'doc';
 }
 
+function getSafeSourceTitle(c) {
+  const type = getSourceType(c.source);
+  const labelByType = {
+    board: 'W-Tech QNA 참고 사례',
+    email: '메일 참고 사례',
+    wiki: 'Confluence 참고 문서',
+    faq: 'FAQ 참고 문서',
+    'api-guide': 'API 가이드 참고 문서',
+    'release-note': '릴리즈 노트 참고 문서',
+    guide: '개발 가이드 참고 문서',
+    doc: '참고 문서',
+  };
+
+  return labelByType[type] || '참고 문서';
+}
+
 /**
  * cases 배열 → W-Tech 표준 sources 구조로 변환
  * [{title, meta, match, url, type}]
@@ -98,7 +114,7 @@ function getSourceType(source) {
 function toSources(cases) {
   return cases.map(c => {
     const out = {
-      title: maskSensitiveInfo(c.title),
+      title: getSafeSourceTitle(c),
       meta: maskSensitiveInfo(c.source),
       match: c.match,
       url: maskSensitiveInfo(c.url || ''),
@@ -134,7 +150,7 @@ function buildRagContext(cases, options = {}) {
   }
 
   return filtered.map((c) => {
-    const title = maskSensitiveInfo(c.title || '관련 사례');
+    const title = getSafeSourceTitle(c);
     const source = maskSensitiveInfo(c.source || '');
     const content = maskSensitiveInfo(c.content || '').slice(0, MAX_CONTEXT_CHARS_PER_CASE);
     return [
@@ -164,6 +180,7 @@ module.exports = {
   toSources,
   calculateConfidence,
   getSourceType,
+  getSafeSourceTitle,
   filterRagCases,
   buildRagContext,
   DEFAULT_MIN_MATCH,
