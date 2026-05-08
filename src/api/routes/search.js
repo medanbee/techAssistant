@@ -10,7 +10,13 @@ const express = require('express');
 const { execFileSync } = require('child_process');
 const path = require('path');
 const Classifier = require('../../classifier/classifier');
-const { parseRagResults, toSources, calculateConfidence, filterRagCases } = require('../../rag/parseRagResults');
+const {
+  parseRagResults,
+  toSources,
+  toSampleFiles,
+  calculateConfidence,
+  filterRagCases,
+} = require('../../rag/parseRagResults');
 const { sanitize } = require('../../utils/sanitize');
 
 const router = express.Router();
@@ -59,6 +65,7 @@ router.post('/', (req, res) => {
       answer: buildAnswer(cases, query),
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
+      sampleFiles: toSampleFiles(cases),
     });
   } catch (err) {
     console.error('[API /search] 실패:', err.message);
@@ -94,6 +101,7 @@ router.post('/raw', (req, res) => {
       resultCount: cases.length,
       rawResultCount: rawCases.length,
       cases,
+      sampleFiles: toSampleFiles(cases),
       rawCases,
       rawContext: output,
     });

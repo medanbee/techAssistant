@@ -8,7 +8,12 @@
 
 const express = require('express');
 const AnswerPipeline = require('../../generator/pipeline');
-const { toSources, calculateConfidence, filterRagCases } = require('../../rag/parseRagResults');
+const {
+  toSources,
+  toSampleFiles,
+  calculateConfidence,
+  filterRagCases,
+} = require('../../rag/parseRagResults');
 const { sanitize } = require('../../utils/sanitize');
 
 const router = express.Router();
@@ -39,6 +44,7 @@ router.post('/', async (req, res) => {
       answer: result.answer || '',
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
+      sampleFiles: toSampleFiles(cases),
     });
   } catch (err) {
     console.error('[API /answer] 실패:', err);
@@ -68,6 +74,7 @@ router.post('/follow-up', async (req, res) => {
       answer: result.answer || '',
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
+      sampleFiles: toSampleFiles(cases),
     });
   } catch (err) {
     console.error('[API /answer/follow-up] 실패:', err);
@@ -111,6 +118,7 @@ router.post('/stream', async (req, res) => {
       answer: result.answer || '',
       confidence: calculateConfidence(cases),
       sources: toSources(cases),
+      sampleFiles: toSampleFiles(cases),
     });
   } catch (err) {
     send('error', { message: err.message });

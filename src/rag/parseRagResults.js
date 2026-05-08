@@ -136,6 +136,40 @@ function toSources(cases) {
   });
 }
 
+function isSampleAttachmentCase(c) {
+  return typeof c.attachmentDir === 'string'
+    && c.attachmentDir.replace(/\\/g, '/').startsWith('dev-guide-sample/');
+}
+
+function toSampleFiles(cases) {
+  if (!Array.isArray(cases)) return [];
+
+  const seen = new Set();
+  const files = [];
+
+  for (const c of cases) {
+    if (!isSampleAttachmentCase(c) || !Array.isArray(c.attachments)) continue;
+
+    for (const a of c.attachments) {
+      if (!a || !a.filename) continue;
+
+      const key = `${c.attachmentDir}/${a.filename}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      files.push({
+        filename: a.filename,
+        mimeType: a.mimeType || '',
+        size: a.size || 0,
+        sourceTitle: getSafeSourceTitle(c),
+        downloadUrl: `/api/attachment?dir=${encodeURIComponent(c.attachmentDir)}&filename=${encodeURIComponent(a.filename)}`,
+      });
+    }
+  }
+
+  return files;
+}
+
 function filterRagCases(cases, minMatch = DEFAULT_MIN_MATCH) {
   if (!Array.isArray(cases)) return [];
   return cases.filter((c) => Number(c.match || 0) >= minMatch);
@@ -178,6 +212,7 @@ function calculateConfidence(cases) {
 module.exports = {
   parseRagResults,
   toSources,
+  toSampleFiles,
   calculateConfidence,
   getSourceType,
   getSafeSourceTitle,
