@@ -6,6 +6,7 @@ config/config.json
 data/raw/
 data/processed/
 data/review/
+data/eval/
 data/chroma/
 .DS_Store
 **/confluence_cookies.json
