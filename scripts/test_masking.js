@@ -24,6 +24,14 @@ const cases = [
     input: 'GridView spanAll rowIndex expression 문의',
     expected: 'GridView spanAll rowIndex expression 문의',
   },
+  {
+    input: '속성명 설명 showDepth 초기 로딩 시 펼쳐질 Depth를 설정',
+    expected: '속성명 설명 showDepth 초기 로딩 시 펼쳐질 Depth를 설정',
+  },
+  {
+    input: '성명 홍길동',
+    expected: '성명 [이름]',
+  },
 ];
 
 for (const { input, expected } of cases) {

@@ -21,8 +21,8 @@ const LINE_FIELD_PATTERNS = [
     replacement: '$1[고객/프로젝트]',
   },
   {
-    regex: /((?:작성자|담당자|요청자|고객명|성명|이름|author|requester|assignee|customer)\s*[:：]?\s*)([^\s,\/\r\n]+)/gi,
-    replacement: '$1[이름]',
+    regex: /(^|[^\p{L}\p{N}_])((?:작성자|담당자|요청자|고객명|성명|이름|author|requester|assignee|customer)\s*[:：]?\s*)([^\s,\/\r\n]+)/giu,
+    replacement: '$1$2[이름]',
   },
 ];
 
