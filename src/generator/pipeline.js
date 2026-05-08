@@ -16,6 +16,7 @@ const {
   evaluateAnswerPolicy,
   appendPolicyNotice,
 } = require('./answerPolicy');
+const { buildQuestionAttachmentContext } = require('./attachmentContext');
 
 class AnswerPipeline {
   constructor() {
@@ -43,14 +44,18 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeQuestion, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] RAG results: ${ragResult.resultCount}`);
+    const attachmentContext = buildQuestionAttachmentContext(options.attachments || []);
+    const generationContext = [safeRagContext, attachmentContext.context]
+      .filter(Boolean)
+      .join('\n\n');
     const answerPolicy = evaluateAnswerPolicy({
-      question: safeQuestion,
+      question: [safeQuestion, attachmentContext.policyText].filter(Boolean).join('\n\n'),
       cases: ragResult.cases,
     });
     console.log(`[Pipeline] answer policy: ${answerPolicy.answerMode} (${answerPolicy.riskLevel})`);
 
     const MAX_RETRIES = 3;
-    let result = await this.generator.generate(safeQuestion, safeRagContext, {
+    let result = await this.generator.generate(safeQuestion, generationContext, {
       version: options.version,
       libraries: options.libraries,
       answerPolicy,
@@ -69,7 +74,7 @@ class AnswerPipeline {
 
       result = await this.generator.regenerate(
         safeQuestion,
-        safeRagContext,
+        generationContext,
         result.answer,
         invalidApis,
         { version: options.version, libraries: options.libraries, answerPolicy }
@@ -111,6 +116,7 @@ class AnswerPipeline {
       question: safeQuestion,
       classification,
       ragResults: { ...ragResult, context: safeRagContext },
+      attachmentContext,
       answer: result.answer,
       hasRagResults: result.hasRagResults,
       usage: result.usage,
@@ -143,8 +149,12 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeFollowUp, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] follow-up RAG results: ${ragResult.resultCount}`);
+    const attachmentContext = buildQuestionAttachmentContext(options.attachments || []);
+    const generationContext = [safeRagContext, attachmentContext.context]
+      .filter(Boolean)
+      .join('\n\n');
     const answerPolicy = evaluateAnswerPolicy({
-      question: [safeOriginalQuestion, safeFollowUp].filter(Boolean).join('\n\n'),
+      question: [safeOriginalQuestion, safeFollowUp, attachmentContext.policyText].filter(Boolean).join('\n\n'),
       cases: ragResult.cases,
     });
     console.log(`[Pipeline] follow-up answer policy: ${answerPolicy.answerMode} (${answerPolicy.riskLevel})`);
@@ -153,7 +163,7 @@ class AnswerPipeline {
       safeOriginalQuestion,
       safePreviousAnswer,
       safeFollowUp,
-      safeRagContext,
+      generationContext,
       { version: options.version, libraries: options.libraries, answerPolicy }
     );
     result.answer = maskSensitiveInfo(result.answer);
@@ -171,7 +181,7 @@ class AnswerPipeline {
 
       result = await this.generator.regenerate(
         safeFollowUp,
-        safeRagContext,
+        generationContext,
         result.answer,
         invalidApis,
         { version: options.version, libraries: options.libraries, answerPolicy }
@@ -201,6 +211,7 @@ class AnswerPipeline {
     return {
       followUp: safeFollowUp,
       ragResults: { ...ragResult, context: safeRagContext },
+      attachmentContext,
       answer: result.answer,
       hasRagResults: result.hasRagResults,
       usage: result.usage,

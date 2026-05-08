@@ -24,7 +24,7 @@ router.post('/', async (req, res) => {
   // query 우선, question은 하위 호환
   const rawQuery = req.body.query || req.body.question;
   const query = sanitize(rawQuery);
-  const { topK, context, categoryFilter } = req.body;
+  const { topK, context, categoryFilter, attachments } = req.body;
   // context.engineVersion이 있으면 version 으로 매핑 (하위 호환: req.body.version)
   const version = (context && context.engineVersion) || req.body.version;
 
@@ -37,6 +37,7 @@ router.post('/', async (req, res) => {
       version,
       topK: topK || 8,
       categoryFilter,
+      attachments,
     });
 
     const cases = filterRagCases(result.ragResults.cases || []);
@@ -50,6 +51,7 @@ router.post('/', async (req, res) => {
       needsHumanReview: result.needsHumanReview,
       reviewReasons: result.reviewReasons || [],
       requiredInfo: result.requiredInfo || [],
+      attachmentSummary: result.attachmentContext?.summary,
     });
   } catch (err) {
     console.error('[API /answer] 실패:', err);
@@ -59,7 +61,7 @@ router.post('/', async (req, res) => {
 
 // POST /api/answer/follow-up — 재답변 (대화 맥락 유지) · 동일 응답 스펙
 router.post('/follow-up', async (req, res) => {
-  const { originalQuestion, previousAnswer, followUp, topK, context } = req.body;
+  const { originalQuestion, previousAnswer, followUp, topK, context, attachments } = req.body;
   const version = (context && context.engineVersion) || req.body.version;
 
   if (!originalQuestion || !previousAnswer || !followUp) {
@@ -71,7 +73,7 @@ router.post('/follow-up', async (req, res) => {
   try {
     const result = await pipeline.processFollowUp(
       { originalQuestion, previousAnswer, followUp },
-      { version, topK: topK || 8 }
+      { version, topK: topK || 8, attachments }
     );
 
     const cases = filterRagCases(result.ragResults.cases || []);
@@ -85,6 +87,7 @@ router.post('/follow-up', async (req, res) => {
       needsHumanReview: result.needsHumanReview,
       reviewReasons: result.reviewReasons || [],
       requiredInfo: result.requiredInfo || [],
+      attachmentSummary: result.attachmentContext?.summary,
     });
   } catch (err) {
     console.error('[API /answer/follow-up] 실패:', err);
@@ -96,7 +99,7 @@ router.post('/follow-up', async (req, res) => {
 router.post('/stream', async (req, res) => {
   const rawQuery = req.body.query || req.body.question;
   const query = sanitize(rawQuery);
-  const { topK, context, categoryFilter } = req.body;
+  const { topK, context, categoryFilter, attachments } = req.body;
   const version = (context && context.engineVersion) || req.body.version;
 
   if (!query) {
@@ -120,6 +123,7 @@ router.post('/stream', async (req, res) => {
       version,
       topK: topK || 8,
       categoryFilter,
+      attachments,
     });
 
     const cases = filterRagCases(result.ragResults.cases || []);
@@ -134,6 +138,7 @@ router.post('/stream', async (req, res) => {
       needsHumanReview: result.needsHumanReview,
       reviewReasons: result.reviewReasons || [],
       requiredInfo: result.requiredInfo || [],
+      attachmentSummary: result.attachmentContext?.summary,
     });
   } catch (err) {
     send('error', { message: err.message });

@@ -15,6 +15,7 @@
     "eval:wtech-holdout": "node scripts/build_wtech_eval_set.js",
     "eval:wtech-latest": "node scripts/eval_collect_latest_wtech.js",
     "test:answer-policy": "node scripts/test_answer_policy.js",
+    "test:attachment-context": "node scripts/test_attachment_context.js",
     "classify": "node scripts/classify.js",
     "index": "python3 src/rag/indexer.py",
     "index:reset": "python3 src/rag/indexer.py --reset",

@@ -45,7 +45,7 @@ const RULES = [
     mode: MODES.BLOCKED,
     reason: '파일 전달, 라이선스, 설치 파일 또는 권한 확인 성격의 문의',
     requiredInfo: ['담당자 확인이 필요한 요청 사항'],
-    pattern: /라이선스|라이센스|license|ellicense|설치\s*파일|websquare2|웹스퀘어\s*2|websquare\s*2|버전\s*내리|플러그인\s*전달|키\s*발급|계약|권한\s*확인/i,
+    pattern: /라이선스|라이센스|license|ellicense|설치\s*파일|websquare2|웹스퀘어\s*2|websquare\s*2|버전\s*내리|플러그인\s*전달|키\s*발급|계약|권한\s*확인|위험\s*첨부/i,
   },
   {
     mode: MODES.HUMAN_REVIEW,
@@ -57,7 +57,7 @@ const RULES = [
     mode: MODES.NEEDS_CONTEXT,
     reason: '첨부 샘플, 재현 조건, 버전 또는 화면 구조 확인이 필요한 문의',
     requiredInfo: ['재현 샘플 파일', '정확한 엔진 빌드 버전', '재현 순서 또는 화면 구조'],
-    pattern: /첨부파일을\s*실행|샘플\s*파일|재현\s*(?:확인|필요|요청)|오류|에러|이상\s*동작|동작\s*오류|안\s*됩니다|안됩니다|안\s*되는|안먹힙니다|적용\s*안|깨짐|스크롤|특정\s*(?:브라우저|환경|버전)/i,
+    pattern: /첨부파일을\s*실행|샘플\s*파일|재현\s*(?:확인|필요|요청)|오류|에러|이상\s*동작|동작\s*오류|안\s*됩니다|안됩니다|안\s*되는|안먹힙니다|적용\s*안|깨짐|스크롤|특정\s*(?:브라우저|환경|버전)|PNG\s*이미지\s*첨부|이미지\s*첨부|화면\s*캡처/i,
   },
 ];
 
