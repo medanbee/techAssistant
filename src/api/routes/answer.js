@@ -8,7 +8,7 @@
 
 const express = require('express');
 const AnswerPipeline = require('../../generator/pipeline');
-const { toSources, calculateConfidence } = require('../../rag/parseRagResults');
+const { toSources, calculateConfidence, filterRagCases } = require('../../rag/parseRagResults');
 const { sanitize } = require('../../utils/sanitize');
 
 const router = express.Router();
@@ -34,7 +34,7 @@ router.post('/', async (req, res) => {
       categoryFilter,
     });
 
-    const cases = result.ragResults.cases || [];
+    const cases = filterRagCases(result.ragResults.cases || []);
     res.json({
       answer: result.answer || '',
       confidence: calculateConfidence(cases),
@@ -63,7 +63,7 @@ router.post('/follow-up', async (req, res) => {
       { version, topK: topK || 8 }
     );
 
-    const cases = result.ragResults.cases || [];
+    const cases = filterRagCases(result.ragResults.cases || []);
     res.json({
       answer: result.answer || '',
       confidence: calculateConfidence(cases),
@@ -105,7 +105,7 @@ router.post('/stream', async (req, res) => {
       categoryFilter,
     });
 
-    const cases = result.ragResults.cases || [];
+    const cases = filterRagCases(result.ragResults.cases || []);
     send('status', { step: 'done', message: '답변 생성 완료' });
     send('result', {
       answer: result.answer || '',

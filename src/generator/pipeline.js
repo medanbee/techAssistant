@@ -10,7 +10,7 @@ const Classifier = require('../classifier/classifier');
 const AnswerGenerator = require('./answerGenerator');
 const ApiVerifier = require('./apiVerifier');
 const { addToQueue } = require('../api/queue');
-const { parseRagResults } = require('../rag/parseRagResults');
+const { parseRagResults, buildRagContext } = require('../rag/parseRagResults');
 const { maskSensitiveInfo } = require('../utils/masking');
 
 class AnswerPipeline {
@@ -214,8 +214,12 @@ class AnswerPipeline {
 
       const cases = parseRagResults(output);
       const fallbackCount = (output.match(/^#\d+\s/mg) || []).length;
+      const filteredContext = buildRagContext(cases, {
+        minMatch: options.minMatch,
+      });
       return {
-        context: output,
+        context: filteredContext,
+        rawContext: output,
         resultCount: cases.length || fallbackCount,
         cases,
       };

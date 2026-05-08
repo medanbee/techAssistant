@@ -1,5 +1,8 @@
 const { maskSensitiveInfo } = require('../utils/masking');
 
+const DEFAULT_MIN_MATCH = 70;
+const MAX_CONTEXT_CHARS_PER_CASE = 1200;
+
 /**
  * Python searcher.py 출력 파싱 공용 모듈
  *
@@ -117,6 +120,31 @@ function toSources(cases) {
   });
 }
 
+function filterRagCases(cases, minMatch = DEFAULT_MIN_MATCH) {
+  if (!Array.isArray(cases)) return [];
+  return cases.filter((c) => Number(c.match || 0) >= minMatch);
+}
+
+function buildRagContext(cases, options = {}) {
+  const minMatch = options.minMatch ?? DEFAULT_MIN_MATCH;
+  const filtered = filterRagCases(cases, minMatch);
+
+  if (filtered.length === 0) {
+    return '';
+  }
+
+  return filtered.map((c) => {
+    const title = maskSensitiveInfo(c.title || '관련 사례');
+    const source = maskSensitiveInfo(c.source || '');
+    const content = maskSensitiveInfo(c.content || '').slice(0, MAX_CONTEXT_CHARS_PER_CASE);
+    return [
+      `--- 참고 사례 [유사도: ${c.match}% | 출처: ${source}] ---`,
+      `질문: ${title}`,
+      `내용: ${content}`,
+    ].join('\n');
+  }).join('\n\n');
+}
+
 /**
  * 신뢰도 계산 — Top-3 유사도 평균
  *
@@ -131,4 +159,12 @@ function calculateConfidence(cases) {
   return Math.round(sum / top3.length);
 }
 
-module.exports = { parseRagResults, toSources, calculateConfidence, getSourceType };
+module.exports = {
+  parseRagResults,
+  toSources,
+  calculateConfidence,
+  getSourceType,
+  filterRagCases,
+  buildRagContext,
+  DEFAULT_MIN_MATCH,
+};

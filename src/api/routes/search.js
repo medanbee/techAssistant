@@ -10,7 +10,7 @@ const express = require('express');
 const { execFileSync } = require('child_process');
 const path = require('path');
 const Classifier = require('../../classifier/classifier');
-const { parseRagResults, toSources, calculateConfidence } = require('../../rag/parseRagResults');
+const { parseRagResults, toSources, calculateConfidence, filterRagCases } = require('../../rag/parseRagResults');
 const { sanitize } = require('../../utils/sanitize');
 
 const router = express.Router();
@@ -30,7 +30,7 @@ function runSearch(query, topK, categoryFilter) {
     timeout: 180000,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
   });
-  return parseRagResults(output);
+  return filterRagCases(parseRagResults(output));
 }
 
 function buildAnswer(cases, query) {
@@ -86,12 +86,15 @@ router.post('/raw', (req, res) => {
       env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
     });
 
-    const cases = parseRagResults(output);
+    const rawCases = parseRagResults(output);
+    const cases = filterRagCases(rawCases);
     res.json({
       query,
       classification,
       resultCount: cases.length,
+      rawResultCount: rawCases.length,
       cases,
+      rawCases,
       rawContext: output,
     });
   } catch (err) {
