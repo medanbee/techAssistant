@@ -77,13 +77,14 @@
   "llmProvider": "anthropic",
   "mcp": {
     "enabled": false,
-    "provider": "command",
+    "provider": "stdio",
     "command": "",
     "args": [],
     "endpoint": "",
     "headers": {},
     "timeoutMs": 5000,
-    "maxItems": 5
+    "maxItems": 5,
+    "cacheTtlMs": 3600000
   },
   "answer": {
     "responderName": "홍길동",
