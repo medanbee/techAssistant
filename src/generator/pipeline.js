@@ -17,6 +17,7 @@ const {
   appendPolicyNotice,
 } = require('./answerPolicy');
 const { buildQuestionAttachmentContext } = require('./attachmentContext');
+const { buildMcpContext } = require('./mcpContext');
 
 class AnswerPipeline {
   constructor() {
@@ -44,10 +45,21 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeQuestion, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] RAG results: ${ragResult.resultCount}`);
+    const mcpContext = await buildMcpContext(safeQuestion, ragResult.cases, options);
+    if (mcpContext.enabled) {
+      console.log(`[Pipeline] MCP context: ${mcpContext.available ? `${mcpContext.items.length} items` : 'unavailable'}`);
+      if (mcpContext.errors.length > 0) {
+        console.warn(`[Pipeline] MCP warnings: ${mcpContext.errors.join('; ')}`);
+      }
+    }
     const attachmentContext = buildQuestionAttachmentContext(options.attachments || []);
-    const generationContext = [safeRagContext, attachmentContext.context]
+    const generationContext = [safeRagContext, mcpContext.context, attachmentContext.context]
       .filter(Boolean)
       .join('\n\n');
+    const sources = [
+      safeRagContext ? 'RAG' : null,
+      ...mcpContext.sources,
+    ].filter(Boolean);
     const answerPolicy = evaluateAnswerPolicy({
       question: [safeQuestion, attachmentContext.policyText].filter(Boolean).join('\n\n'),
       cases: ragResult.cases,
@@ -93,6 +105,7 @@ class AnswerPipeline {
       }
     }
     result.answer = appendPolicyNotice(result.answer, answerPolicy);
+    result.sources = sources;
 
     const savedPath = this._saveAnswer(safeQuestion, result, classification);
     if (savedPath) {
@@ -104,7 +117,7 @@ class AnswerPipeline {
         question: safeQuestion,
         answer: result.answer,
         classification,
-        sources: safeRagContext ? ['RAG'] : [],
+        sources,
         filePath: savedPath,
       });
       console.log(`[Pipeline] queued: ${queueItem.id}`);
@@ -116,9 +129,11 @@ class AnswerPipeline {
       question: safeQuestion,
       classification,
       ragResults: { ...ragResult, context: safeRagContext },
+      mcpContext,
       attachmentContext,
       answer: result.answer,
       hasRagResults: result.hasRagResults,
+      sources,
       usage: result.usage,
       model: result.model,
       verification,
@@ -149,10 +164,21 @@ class AnswerPipeline {
     const ragResult = this._searchRAG(safeFollowUp, options);
     const safeRagContext = maskSensitiveInfo(ragResult.context);
     console.log(`[Pipeline] follow-up RAG results: ${ragResult.resultCount}`);
+    const mcpContext = await buildMcpContext(safeFollowUp, ragResult.cases, options);
+    if (mcpContext.enabled) {
+      console.log(`[Pipeline] follow-up MCP context: ${mcpContext.available ? `${mcpContext.items.length} items` : 'unavailable'}`);
+      if (mcpContext.errors.length > 0) {
+        console.warn(`[Pipeline] follow-up MCP warnings: ${mcpContext.errors.join('; ')}`);
+      }
+    }
     const attachmentContext = buildQuestionAttachmentContext(options.attachments || []);
-    const generationContext = [safeRagContext, attachmentContext.context]
+    const generationContext = [safeRagContext, mcpContext.context, attachmentContext.context]
       .filter(Boolean)
       .join('\n\n');
+    const sources = [
+      safeRagContext ? 'RAG' : null,
+      ...mcpContext.sources,
+    ].filter(Boolean);
     const answerPolicy = evaluateAnswerPolicy({
       question: [safeOriginalQuestion, safeFollowUp, attachmentContext.policyText].filter(Boolean).join('\n\n'),
       cases: ragResult.cases,
@@ -198,6 +224,7 @@ class AnswerPipeline {
       }
     }
     result.answer = appendPolicyNotice(result.answer, answerPolicy);
+    result.sources = sources;
 
     const savedPath = this._saveAnswer(
       safeFollowUp,
@@ -211,9 +238,11 @@ class AnswerPipeline {
     return {
       followUp: safeFollowUp,
       ragResults: { ...ragResult, context: safeRagContext },
+      mcpContext,
       attachmentContext,
       answer: result.answer,
       hasRagResults: result.hasRagResults,
+      sources,
       usage: result.usage,
       model: result.model,
       verification,
@@ -281,8 +310,9 @@ class AnswerPipeline {
       const filename = this._toFilename(question);
       const filePath = path.join(dirPath, `${filename}.md`);
 
-      const basis = result.hasRagResults
-        ? '내부 데이터 기반 (RAG 유사 사례 참고)'
+      const sources = Array.isArray(result.sources) ? result.sources : [];
+      const basis = sources.length > 0
+        ? `참고자료 기반 (${sources.join(' + ')})`
         : '일반 기술 지식 기반 (내부 사례 없음)';
 
       const content = `# ${this._extractTitle(question)}

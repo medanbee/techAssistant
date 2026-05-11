@@ -164,10 +164,10 @@ class AnswerGenerator {
   _buildUserMessage(question, ragContext, options, hasRagResults) {
     let message = '';
 
-    // RAG 컨텍스트
+    // RAG/MCP 컨텍스트
     if (hasRagResults) {
       const trimmedContext = ragContext.substring(0, MAX_TOTAL_CONTEXT);
-      message += `## 참고 사례 (RAG 검색 결과)\n\n${trimmedContext}\n\n`;
+      message += `## 참고 자료 (RAG 검색 결과 및 MCP 공식 스펙)\n\n${trimmedContext}\n\n`;
     } else {
       message += `## 참고 사례\n\n내부 데이터에서 관련 사례를 찾지 못했습니다. 일반적인 WebSquare 기술 지식을 기반으로 답변해 주세요.\n\n`;
     }
@@ -182,7 +182,7 @@ class AnswerGenerator {
     // 고객 문의
     message += `## 고객 문의 내용\n\n${question}\n\n`;
     message += hasRagResults
-      ? '위 참고 사례를 기반으로 기술지원 답변 초안을 작성해 주세요.'
+      ? '위 참고 자료를 기반으로 기술지원 답변 초안을 작성해 주세요.'
       : 'WebSquare 공식 문서 및 일반적인 기술 지식을 기반으로 기술지원 답변 초안을 작성해 주세요.';
 
     return message;
@@ -206,7 +206,7 @@ class AnswerGenerator {
 
     if (hasRagResults) {
       const trimmedContext = ragContext.substring(0, MAX_TOTAL_CONTEXT);
-      message += `## 참고 사례 (RAG 검색 결과)\n\n${trimmedContext}\n\n`;
+      message += `## 참고 자료 (RAG 검색 결과 및 MCP 공식 스펙)\n\n${trimmedContext}\n\n`;
     }
 
     if (options.version) {

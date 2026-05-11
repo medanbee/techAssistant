@@ -116,7 +116,7 @@ router.post('/', async (req, res) => {
           question: detail.question,
           answer: result.answer,
           classification: result.classification,
-          sources: result.hasRagResults ? ['RAG'] : [],
+          sources: result.sources || [],
           filePath: result.savedPath,
         });
 
